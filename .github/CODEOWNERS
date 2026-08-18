@@ -1,0 +1,14 @@
+# Code Owners
+# 每个文件的最后匹配行优先
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# 默认:所有变更需要 Joe 审核
+* @lshgdut
+
+# 架构关键路径:更高门槛
+/JanusSSHTunnelEngine/Sources/JanusSSHTunnelEngine/Domain/    @lshgdut
+/JanusSSHTunnelEngine/Sources/JanusSSHTunnelEngine/SSH/       @lshgdut
+/JanusSSHTunnelEngine/Sources/JanusSSHTunnelEngine/Tunnel/    @lshgdut
+/JanusSSHTunnelEngine/Sources/JanusSSHTunnelEngine/Persistence/ @lshgdut
+/docs/adr/                                                    @lshgdut
+/JanusSSH/Resources/JanusSSH.entitlements                     @lshgdut

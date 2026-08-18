@@ -1,0 +1,10 @@
+# Janus SSH integration test fixtures
+# 复制到 ~/.ssh/config 后启动 docker compose 即可测试
+
+Host test-sshd
+    HostName 127.0.0.1
+    Port 2222
+    User testuser
+    IdentityFile ~/.ssh/id_ed25519
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null

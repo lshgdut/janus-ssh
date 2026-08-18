@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  engine-test:
+    name: Tunnel Engine Tests
+    runs-on: macos-14
+    strategy:
+      matrix:
+        macos: [macos-14, macos-15, macos-26]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select macOS version
+        run: |
+          if [ "${{ matrix.macos }}" = "macos-14" ]; then
+            echo "MATRIX_OS=14" >> $GITHUB_ENV
+          elif [ "${{ matrix.macos }}" = "macos-15" ]; then
+            echo "MATRIX_OS=15" >> $GITHUB_ENV
+          else
+            echo "MATRIX_OS=26" >> $GITHUB_ENV
+          fi
+
+      - name: Build Tunnel Engine
+        working-directory: JanusSSHTunnelEngine
+        run: swift build
+
+      - name: Run XCTest
+        working-directory: JanusSSHTunnelEngine
+        run: swift test
+
+  app-build:
+    name: macOS App Build
+    runs-on: macos-15
+    needs: engine-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build App
+        run: |
+          xcodebuild \
+            -project JanusSSH.xcodeproj \
+            -scheme JanusSSH \
+            -configuration Debug \
+            -destination "platform=macOS" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+  integration-test:
+    name: Docker Integration
+    runs-on: macos-15
+    needs: engine-test
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start test SSH server
+        run: |
+          docker compose -f tools/integration-tests/docker-compose.yml up -d
+          sleep 5
+
+      - name: Run integration tests
+        run: bash scripts/integration-test.sh
+
+      - name: Stop test server
+        if: always()
+        run: docker compose -f tools/integration-tests/docker-compose.yml down

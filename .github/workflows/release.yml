@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build + Notarize + DMG
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import Notarization Profile
+        run: |
+          mkdir -p ~/notary
+          echo "${{ secrets.NOTARY_PROFILE_KEY }}" > ~/notary/JanusSSH-Notarize.keychain-profile
+          security import ~/notary/JanusSSH-Notarize.keychain-profile
+
+      - name: Build + Sign
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          bash scripts/release.sh $VERSION
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/JanusSSH-*.zip
+            build/JanusSSH-*.dmg
+
+  homebrew:
+    name: Update Homebrew Cask
+    runs-on: macos-15
+    needs: release
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: lshgdut/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update cask sha256
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          DMG="build/JanusSSH-${VERSION}.dmg"
+          SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+          sed -i '' "s/version \"[0-9.]*\"/version \"${VERSION}\"/" homebrew/janus-ssh.rb
+          sed -i '' "s/sha256 \"[a-f0-9]*\"/sha256 \"${SHA}\"/" homebrew/janus-ssh.rb
+
+      - name: Commit + Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add homebrew/janus-ssh.rb
+          git commit -m "janus-ssh: bump to v${GITHUB_REF#refs/tags/v}"
+          git push

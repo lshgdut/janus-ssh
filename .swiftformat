@@ -1,0 +1,29 @@
+--swiftversion 6.0
+--minversion 6.0
+
+# 缩进
+--indent 4
+--tabwidth 4
+--indentcase false
+
+# 行长度
+--maxwidth 120
+--nowrapoperators ++, -, &&, ||
+--exponentcase lowercase
+
+# 文件头 / 注释
+--header ignore
+--comments ignore
+
+# 命名
+--typeattributes prev-line
+--funcattributes prev-line
+
+# 不修改项目结构
+--disable redundantParens, redundantSelf, wrapMultilineStatement, wrapArguments,
+            hoistTry, sortedImports, consecutiveBlankLines, blankLinesAtStartOfFile,
+            blankLinesAtEndOfFile, trailingCommas, extensionAccessControl,
+            blockComments, docComments, hoistPatternLet
+
+# 启用
+--enable isempty, initOnly, sortedSwitchCases
