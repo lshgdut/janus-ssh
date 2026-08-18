@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Import Notarization Profile
         run: |
@@ -40,7 +40,7 @@ jobs:
     needs: release
     if: github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: lshgdut/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
