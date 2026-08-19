@@ -3,18 +3,18 @@ import Foundation
 /// PortForward 对应 `-L` 参数的一行。
 ///
 /// ssh -L 的参数形式: `localHost:localPort:remoteHost:remotePort`
-struct PortForward: Codable, Identifiable, Hashable, Sendable {
-    let id: UUID
+public struct PortForward: Codable, Identifiable, Hashable, Sendable {
+    public let id: UUID
 
-    var localHost: String
-    var localPort: UInt16
+    public var localHost: String
+    public var localPort: UInt16
 
-    var remoteHost: String
-    var remotePort: UInt16
+    public var remoteHost: String
+    public var remotePort: UInt16
 
-    var label: String?
+    public var label: String?
 
-    init(
+    public init(
         id: UUID = UUID(),
         localHost: String,
         localPort: UInt16,
@@ -31,12 +31,12 @@ struct PortForward: Codable, Identifiable, Hashable, Sendable {
     }
 
     /// `127.0.0.1:15432` 形式,用于 UI 显示
-    var localEndpoint: String {
+    public var localEndpoint: String {
         "\(localHost):\(localPort)"
     }
 
     /// ssh -L 参数形式: `127.0.0.1:15432:10.20.0.15:5432`
-    var sshArgument: String {
+    public var sshArgument: String {
         "\(localHost):\(localPort):\(remoteHost):\(remotePort)"
     }
 }

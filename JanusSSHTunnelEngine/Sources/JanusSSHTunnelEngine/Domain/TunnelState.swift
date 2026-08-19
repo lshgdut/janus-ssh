@@ -10,7 +10,7 @@ import Foundation
 ///              ↓
 ///            error
 /// ```
-enum TunnelState: Equatable, Sendable {
+public enum TunnelState: Equatable, Sendable {
     case stopped
     case starting
     case running
@@ -23,7 +23,7 @@ enum TunnelState: Equatable, Sendable {
 ///
 /// 关键区分:`userRequested` 和 `applicationShutdown` 都**禁止**重连,
 /// `processExited` 和 `startupFailure` 才允许重连。
-enum TerminationReason: Sendable, Equatable, Hashable {
+public enum TerminationReason: Sendable, Equatable, Hashable {
     case userRequested
     case processExited
     case applicationShutdown

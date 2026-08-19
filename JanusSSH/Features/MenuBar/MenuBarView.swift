@@ -91,7 +91,7 @@ private struct MenuBarProfileRow: View {
     var body: some View {
         Button(action: onAction) {
             HStack(spacing: 12) {
-                Circle().fill(stateColor).frame(width: 8, height: 8)
+                StatusBadge(state: tunnel.state, style: .compact)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.name).font(.body).foregroundStyle(.white)
                     Text("\(profile.forwards.count) forwards")
@@ -106,16 +106,9 @@ private struct MenuBarProfileRow: View {
         }
         .buttonStyle(.plain)
         .background(hovering ? Color.white.opacity(0.06) : Color.clear)
-        .onHover { hovering = in $0 }
+        .onHover { hovering = $0 }
     }
 
-    private var stateColor: Color {
-        switch tunnel.state {
-        case .running: return .green
-        case .error: return .red
-        default: return .gray
-        }
-    }
 }
 
 private struct MenuBarItem: View {
@@ -135,6 +128,6 @@ private struct MenuBarItem: View {
         }
         .buttonStyle(.plain)
         .background(hovering ? Color.accentColor : Color.clear)
-        .onHover { hovering = in $0 }
+        .onHover { hovering = $0 }
     }
 }

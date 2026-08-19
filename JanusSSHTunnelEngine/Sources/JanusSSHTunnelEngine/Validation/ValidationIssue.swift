@@ -1,7 +1,7 @@
 import Foundation
 
 /// 校验问题的严重程度
-enum ValidationSeverity: Sendable, Hashable {
+public enum ValidationSeverity: Sendable, Hashable {
     case error
     case warning
 }
@@ -14,8 +14,8 @@ enum ValidationSeverity: Sendable, Hashable {
 /// - `"forwards"` — 整体校验(如至少 1 条)
 /// - `"forwards.localPort"` — 某一行 localPort 重复或越界
 /// - `"forwards.localHost"` / `"forwards.remoteHost"` — 主机名空
-struct ValidationIssue: Sendable, Hashable {
-    let severity: ValidationSeverity
-    let message: String
-    let field: String?
+public struct ValidationIssue: Sendable, Hashable {
+    public let severity: ValidationSeverity
+    public let message: String
+    public let field: String?
 }

@@ -88,22 +88,11 @@ private struct Toolbar: View {
 private struct EmptyState: View {
     @Environment(AppContainer.self) private var container
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "tray")
-                .font(.system(size: 48))
-                .foregroundStyle(.tertiary)
-            Text("No profiles yet").font(.headline).foregroundStyle(.secondary)
-            Text("Create your first SSH tunnel profile to get started.")
-                .font(.subheadline).foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-            Button("New Profile") {
-                // Will be handled by toolbar
-            }
-            .buttonStyle(.borderedProminent)
-            .hidden()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            systemImage: "tray",
+            title: "No profiles yet",
+            message: "Create your first SSH tunnel profile to get started."
+        )
     }
 }
 
@@ -120,7 +109,7 @@ struct ProfileCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Text(profile.name).font(.title3).fontWeight(.medium)
-                    StatusPill(state: tunnel?.state ?? .stopped)
+                    StatusBadge(state: tunnel?.state ?? .stopped)
                 }
                 HStack(spacing: 12) {
                     Text(profile.sshHostAlias)
@@ -245,37 +234,4 @@ private struct TagsRow: View {
     }
 }
 
-struct StatusPill: View {
-    let state: TunnelState
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text(label).font(.caption).fontWeight(.medium)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 3)
-        .background(color.opacity(0.12), in: Capsule())
-        .foregroundStyle(color)
-    }
 
-    private var color: Color {
-        switch state {
-        case .running: return .accentColor
-        case .starting: return .orange
-        case .reconnecting: return .yellow
-        case .error: return .red
-        case .stopping: return .gray
-        case .stopped: return .secondary
-        }
-    }
-
-    private var label: String {
-        switch state {
-        case .running: return "Running"
-        case .starting: return "Starting"
-        case .reconnecting: return "Reconnecting"
-        case .error: return "Error"
-        case .stopping: return "Stopping"
-        case .stopped: return "Stopped"
-        }
-    }
-}

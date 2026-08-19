@@ -2,17 +2,18 @@ import Foundation
 
 /// Per-profile 内存日志存储 — UI 通过 `subscribe` 拿实时流。
 /// 环形缓冲:每 Profile 最多 1000 条,超出后丢弃最旧。
-actor TunnelLogStore {
+public actor TunnelLogStore {
+    public init() {}
 
-    struct Entry: Sendable, Identifiable {
-        let id: UUID
-        let timestamp: Date
-        let kind: Kind
-        let level: Level
-        let message: String
+    public struct Entry: Sendable, Identifiable, Equatable {
+        public let id: UUID
+        public let timestamp: Date
+        public let kind: Kind
+        public let level: Level
+        public let message: String
 
-        enum Kind: String, Sendable { case app, stdout, stderr }
-        enum Level: String, Sendable { case info, warn, error }
+        public enum Kind: String, Sendable { case app, stdout, stderr }
+        public enum Level: String, Sendable { case info, warn, error }
     }
 
     static let bufferCapacity = 1000
@@ -48,11 +49,11 @@ actor TunnelLogStore {
         append(profileID: profileID, entry)
     }
 
-    func snapshot(profileID: UUID) -> [Entry] {
+    public func snapshot(profileID: UUID) -> [Entry] {
         return buffers[profileID] ?? []
     }
 
-    func subscribe(profileID: UUID) -> AsyncStream<Entry> {
+    public func subscribe(profileID: UUID) -> AsyncStream<Entry> {
         let id = UUID()
         return AsyncStream { continuation in
             var subs = continuations[profileID, default: [:]]
@@ -66,7 +67,7 @@ actor TunnelLogStore {
         }
     }
 
-    func clear(profileID: UUID) {
+    public func clear(profileID: UUID) {
         buffers[profileID] = []
     }
 

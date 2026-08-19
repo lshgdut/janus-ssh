@@ -1,7 +1,7 @@
 import Foundation
 
 /// SSH 配置协议 — 抽象层让测试可以替换 mock
-protocol SSHConfigProviding: Sendable {
+public protocol SSHConfigProviding: Sendable {
     /// 从 ssh config 发现所有 host alias(支持 Include 递归)
     func discoverHosts() async throws -> [SSHHost]
     /// 通过 ssh -G 解析某个 host 的完整配置
@@ -10,12 +10,12 @@ protocol SSHConfigProviding: Sendable {
     func testConnection(alias: String) async throws -> ConnectionTestResult
 }
 
-enum SSHConfigError: Error, LocalizedError {
+public enum SSHConfigError: Error, LocalizedError {
     case fileNotFound(String)
     case parseError(String)
     case resolutionFailed(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .fileNotFound(let p): return "SSH config file not found: \(p)"
         case .parseError(let msg): return "Failed to parse SSH config: \(msg)"
@@ -25,12 +25,12 @@ enum SSHConfigError: Error, LocalizedError {
 }
 
 /// 默认实现 — 通过文件解析 + ssh -G
-final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
+public final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
 
     private let configPath: String
     private let sshPath: URL
 
-    init(configPath: String = "~/.ssh/config",
+    public init(configPath: String = "~/.ssh/config",
          sshPath: URL = URL(fileURLWithPath: "/usr/bin/ssh")) {
         self.configPath = configPath
         self.sshPath = sshPath
@@ -38,7 +38,7 @@ final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
 
     // MARK: - Discovery
 
-    func discoverHosts() async throws -> [SSHHost] {
+    public func discoverHosts() async throws -> [SSHHost] {
         let path = expand(configPath)
         guard FileManager.default.fileExists(atPath: path) else {
             throw SSHConfigError.fileNotFound(path)
@@ -61,7 +61,7 @@ final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
 
     // MARK: - Resolution via ssh -G
 
-    func resolve(host: String) async throws -> ResolvedHostConfig {
+    public func resolve(host: String) async throws -> ResolvedHostConfig {
         let proc = try SSHProcess(
             executable: sshPath,
             arguments: ["-G", host]
@@ -113,7 +113,7 @@ final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
 
     // MARK: - Test connection
 
-    func testConnection(alias: String) async throws -> ConnectionTestResult {
+    public func testConnection(alias: String) async throws -> ConnectionTestResult {
         let proc = try SSHProcess(
             executable: sshPath,
             arguments: [

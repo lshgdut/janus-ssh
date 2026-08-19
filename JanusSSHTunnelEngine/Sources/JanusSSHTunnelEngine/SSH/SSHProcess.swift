@@ -1,14 +1,14 @@
 import Foundation
 
 /// SSHProcess 错误
-enum SSHProcessError: Error, LocalizedError {
+public enum SSHProcessError: Error, LocalizedError {
     case notStarted
     case alreadyRunning
     case spawnFailed(underlying: Error)
     case binaryNotFound(URL)
     case invalidExecutable(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .notStarted: return "Process has not been started."
         case .alreadyRunning: return "Process is already running."
@@ -28,15 +28,15 @@ enum SSHProcessError: Error, LocalizedError {
 /// 1. stdout / stderr / termination 三流合一,通过 `events()` 暴露
 /// 2. 不调用 `waitUntilExit()`(会阻塞导致 pipe buffer 满 → 子进程卡死)
 /// 3. graceful=false 时发 SIGKILL;graceful=true 发 SIGTERM 并等 5s
-actor SSHProcess: SSHProcessHandle {
+public actor SSHProcess: SSHProcessHandle {
 
-    enum Event: Sendable {
+    public enum Event: Sendable {
         case stdout(Data)
         case stderr(Data)
         case terminated(exitCode: Int32, reason: ProcessEndedReason)
     }
 
-    enum ProcessEndedReason: Sendable {
+    public enum ProcessEndedReason: Sendable {
         case exited       // 正常 exit(可能被我们 SIGTERM 后)
         case killed       // SIGKILL
         case spawnFailed
@@ -54,7 +54,7 @@ actor SSHProcess: SSHProcessHandle {
     private var stderrBuffer = Data()
     private var continuations: [UUID: AsyncStream<Event>.Continuation] = [:]
 
-    init(executable: URL, arguments: [String], environment: [String: String]? = nil) throws {
+    public init(executable: URL, arguments: [String], environment: [String: String]? = nil) throws {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw SSHProcessError.binaryNotFound(executable)
         }
@@ -120,7 +120,7 @@ actor SSHProcess: SSHProcessHandle {
     }
 
     /// 优雅或强制终止
-    func terminate(gracefully: Bool) async throws {
+    public func terminate(gracefully: Bool) async throws {
         guard let p = process, p.isRunning else {
             throw SSHProcessError.notStarted
         }
@@ -145,12 +145,12 @@ actor SSHProcess: SSHProcessHandle {
         }
     }
 
-    func pid() -> Int32? {
+    public func pid() -> Int32? {
         process?.processIdentifier
     }
 
     /// 订阅事件流(每次调用返回独立流)
-    func events() async -> AsyncStream<Event> {
+    public func events() async -> AsyncStream<Event> {
         let id = UUID()
         return AsyncStream { continuation in
             continuations[id] = continuation

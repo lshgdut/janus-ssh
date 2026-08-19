@@ -143,9 +143,7 @@ struct ProfileEditorView: View {
         Task {
             await container.upsertProfile(draft)
             if restart {
-                await container.tunnelManager.processManager
-                    .terminate(profileID: draft.id, reason: .userRequested)
-                try? await container.tunnelManager.start(profileID: draft.id)
+                try? await container.tunnelManager.restart(profileID: draft.id)
             }
             dismiss()
         }

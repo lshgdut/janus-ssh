@@ -5,7 +5,7 @@ import Foundation
 /// - 写入走 `AtomicFileStore`,不会留下损坏文件
 /// - 每次 save 生成 ISO8601 timestamped 备份
 /// - 自动轮转,保留最近 `maxBackups` 个备份
-actor JSONProfileRepository: ProfileRepository {
+public actor JSONProfileRepository: ProfileRepository {
 
     private let fileURL: URL
     private let backupDirectory: URL
@@ -14,7 +14,7 @@ actor JSONProfileRepository: ProfileRepository {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    init(
+    public init(
         fileURL: URL,
         backupDirectory: URL,
         maxBackups: Int = 10,
@@ -35,7 +35,7 @@ actor JSONProfileRepository: ProfileRepository {
         self.decoder = dec
     }
 
-    func load() async throws -> [Profile] {
+    public func load() async throws -> [Profile] {
         let fm = FileManager.default
         guard fm.fileExists(atPath: fileURL.path) else {
             throw RepositoryError.fileNotFound(fileURL)
@@ -65,7 +65,7 @@ actor JSONProfileRepository: ProfileRepository {
         return envelope.profiles
     }
 
-    func save(_ profiles: [Profile]) async throws {
+    public func save(_ profiles: [Profile]) async throws {
         try ensureBackupDirectory()
 
         let envelope = ProfileEnvelope(profiles: profiles, updatedAt: Date())
@@ -89,7 +89,7 @@ actor JSONProfileRepository: ProfileRepository {
         }
     }
 
-    func listBackups() async throws -> [URL] {
+    public func listBackups() async throws -> [URL] {
         let fm = FileManager.default
         guard fm.fileExists(atPath: backupDirectory.path) else {
             return []
@@ -109,13 +109,13 @@ actor JSONProfileRepository: ProfileRepository {
             }
     }
 
-    func restore(from backup: URL) async throws {
+    public func restore(from backup: URL) async throws {
         // 把当前主文件复制成 .bak,再用 backup 内容覆盖主文件
         let data = try Data(contentsOf: backup)
         try await store.write(data, to: fileURL)
     }
 
-    func importFrom(_ url: URL) async throws -> [Profile] {
+    public func importFrom(_ url: URL) async throws -> [Profile] {
         let data = try Data(contentsOf: url)
         let envelope = try decoder.decode(ProfileEnvelope.self, from: data)
         return envelope.profiles

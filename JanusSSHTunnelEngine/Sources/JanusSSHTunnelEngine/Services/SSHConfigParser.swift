@@ -3,10 +3,11 @@ import Foundation
 /// SSH config 解析器 — 简化版,只解析 host alias + 字段,语义交给 ssh -G。
 ///
 /// 不重复实现 OpenSSH 语义 — 这是 ADR-0010 的原则。
-struct SSHConfigParser {
+public struct SSHConfigParser {
+    public init() {}
 
     /// SSH config 一行一个 key/value
-    enum Key: String, CaseIterable {
+    public enum Key: String, CaseIterable {
         case host, hostname, user, port
         case identityFile = "IdentityFile"
         case proxyJump = "ProxyJump"
@@ -16,7 +17,7 @@ struct SSHConfigParser {
     }
 
     /// 解析后的一个 Host 段
-    struct Entry {
+    public struct Entry {
         let alias: String
         var options: [Key: String]
     }

@@ -11,7 +11,7 @@ final class AppLifecycleManager {
     private let reconnectController: ReconnectController
     private let settingsManager: SettingsManager
 
-    private var observers: [NSObjectProtocol] = []
+    nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     init(
         tunnelManager: TunnelManager,
@@ -46,18 +46,21 @@ final class AppLifecycleManager {
     }
 
     private func handleQuit() async {
-        reconnectController.cancelAll()
+        await reconnectController.cancelAll()
         await tunnelManager.stopAll()
     }
 
     private func handlePowerOff() async {
-        reconnectController.cancelAll()
+        await reconnectController.cancelAll()
         await tunnelManager.stopAll()
     }
 
     deinit {
-        for o in observers {
-            NotificationCenter.default.removeObserver(o)
+        let observersCopy = observers
+        Task { @MainActor in
+            for o in observersCopy {
+                NotificationCenter.default.removeObserver(o)
+            }
         }
     }
 }

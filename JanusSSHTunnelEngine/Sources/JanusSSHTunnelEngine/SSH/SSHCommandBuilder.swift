@@ -1,11 +1,11 @@
 import Foundation
 
 /// SSH 命令构造错误
-enum SSHCommandBuilderError: Error, LocalizedError, Equatable {
+public enum SSHCommandBuilderError: Error, LocalizedError, Equatable {
     case noForwards
     case emptyForwardRow(index: Int)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noForwards:
             return "Profile has no port forwards; cannot start tunnel."
@@ -16,10 +16,10 @@ enum SSHCommandBuilderError: Error, LocalizedError, Equatable {
 }
 
 /// 构造好的可执行命令 — 通过 argv 数组传给 Foundation.Process,不经过 shell
-struct SSHCommand: Sendable, Equatable {
-    let executable: URL
-    let arguments: [String]
-    let environment: [String: String]?
+public struct SSHCommand: Sendable, Equatable {
+    public let executable: URL
+    public let arguments: [String]
+    public let environment: [String: String]?
 }
 
 /// SSH 命令构造器。
@@ -30,7 +30,8 @@ struct SSHCommand: Sendable, Equatable {
 /// - 默认包含 `-o BatchMode=yes` + ServerAlive(避免卡在密码提示)
 /// - 每个 PortForward 对应一个 `-L <localHost:localPort:remoteHost:remotePort>`
 /// - sshHostAlias 作为最后一个位置参数
-struct SSHCommandBuilder: Sendable {
+public struct SSHCommandBuilder: Sendable {
+    public init() {}
 
     /// 默认 ssh 二进制位置
     static let defaultSSHPath = URL(fileURLWithPath: "/usr/bin/ssh")
@@ -45,7 +46,7 @@ struct SSHCommandBuilder: Sendable {
         "-o", "ServerAliveCountMax=3"
     ]
 
-    func build(profile: ProfileSnapshot) throws -> SSHCommand {
+    public func build(profile: ProfileSnapshot) throws -> SSHCommand {
         guard !profile.forwards.isEmpty else {
             throw SSHCommandBuilderError.noForwards
         }

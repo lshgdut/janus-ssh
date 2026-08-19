@@ -1,7 +1,7 @@
 import Foundation
 
 /// Profile 持久化协议 — 抽象层让未来可以切换到 SQLite 等后端
-protocol ProfileRepository: Sendable {
+public protocol ProfileRepository: Sendable {
     /// 从磁盘加载所有 profile
     /// - Throws: `RepositoryError.fileNotFound` 当文件不存在
     func load() async throws -> [Profile]

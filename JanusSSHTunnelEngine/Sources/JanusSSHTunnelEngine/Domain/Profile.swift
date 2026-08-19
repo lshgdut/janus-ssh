@@ -6,19 +6,19 @@ import Foundation
 ///
 /// Profile 故意不携带运行时状态(pid / state) — 运行时由 `Tunnel` 单独维护。
 /// 这是关键不变量:改 Profile 不影响已运行的 Tunnel,反之亦然。
-struct Profile: Codable, Identifiable, Hashable, Sendable {
-    let id: UUID
+public struct Profile: Codable, Identifiable, Hashable, Sendable {
+    public let id: UUID
 
-    var name: String
-    var sshHostAlias: String
+    public var name: String
+    public var sshHostAlias: String
 
-    var forwards: [PortForward]
-    var behavior: Behavior
+    public var forwards: [PortForward]
+    public var behavior: Behavior
 
-    var createdAt: Date
-    var updatedAt: Date
+    public var createdAt: Date
+    public var updatedAt: Date
 
-    init(
+    public init(
         id: UUID = UUID(),
         name: String,
         sshHostAlias: String,
@@ -36,12 +36,18 @@ struct Profile: Codable, Identifiable, Hashable, Sendable {
         self.updatedAt = updatedAt
     }
 
-    struct Behavior: Codable, Hashable, Sendable {
-        var enabled: Bool
-        var autoReconnect: Bool
-        var autoStart: Bool
+    public struct Behavior: Codable, Hashable, Sendable {
+        public var enabled: Bool
+        public var autoReconnect: Bool
+        public var autoStart: Bool
 
-        static let defaults = Behavior(
+        public init(enabled: Bool, autoReconnect: Bool, autoStart: Bool) {
+            self.enabled = enabled
+            self.autoReconnect = autoReconnect
+            self.autoStart = autoStart
+        }
+
+        public static let defaults = Behavior(
             enabled: true, autoReconnect: true, autoStart: false
         )
     }

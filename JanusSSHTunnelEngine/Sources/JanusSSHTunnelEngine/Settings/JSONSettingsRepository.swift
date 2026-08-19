@@ -1,21 +1,21 @@
 import Foundation
 
 /// Settings 持久化协议
-protocol SettingsRepository: Sendable {
+public protocol SettingsRepository: Sendable {
     /// 文件不存在时返回 `AppSettings.defaults`(首次启动)
     func load() async throws -> AppSettings
     func save(_ settings: AppSettings) async throws
 }
 
 /// JSON + Atomic Write 的 Settings 实现
-actor JSONSettingsRepository: SettingsRepository {
+public actor JSONSettingsRepository: SettingsRepository {
 
     private let fileURL: URL
     private let store: AtomicFileStore
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    init(fileURL: URL, store: AtomicFileStore = AtomicFileStore()) {
+    public init(fileURL: URL, store: AtomicFileStore = AtomicFileStore()) {
         self.fileURL = fileURL
         self.store = store
 
@@ -29,7 +29,7 @@ actor JSONSettingsRepository: SettingsRepository {
         self.decoder = dec
     }
 
-    func load() async throws -> AppSettings {
+    public func load() async throws -> AppSettings {
         let fm = FileManager.default
         guard fm.fileExists(atPath: fileURL.path) else {
             return AppSettings.defaults
@@ -44,7 +44,7 @@ actor JSONSettingsRepository: SettingsRepository {
         }
     }
 
-    func save(_ settings: AppSettings) async throws {
+    public func save(_ settings: AppSettings) async throws {
         let data = try encoder.encode(settings)
         try await store.write(data, to: fileURL)
     }

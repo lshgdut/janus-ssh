@@ -1,15 +1,16 @@
 import Foundation
 
 /// 端口检查协议 — 抽象层让测试可以替换 mock
-protocol PortChecking: Sendable {
+public protocol PortChecking: Sendable {
     /// 返回 true 表示端口空闲(无人 LISTEN),false 表示已被占用
     func isPortAvailable(host: String, port: UInt16) async -> Bool
 }
 
 /// 默认实现 — 用 NWConnection 探测
 /// 注意:这只是 preflight,真正判断仍然依赖 ssh -L 的 ExitOnForwardFailure 兜底
-final class TCPPortChecker: PortChecking, @unchecked Sendable {
-    func isPortAvailable(host: String, port: UInt16) async -> Bool {
+public final class TCPPortChecker: PortChecking, @unchecked Sendable {
+    public init() {}
+    public func isPortAvailable(host: String, port: UInt16) async -> Bool {
         // 简化版:尝试 connect 一次,失败说明端口空闲
         // 生产代码应使用 NWConnection 并设置超时
         // 此处先用 socket 实现,TODO:替换为 Network.framework

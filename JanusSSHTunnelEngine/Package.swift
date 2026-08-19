@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(
             name: "JanusSSHTunnelEngine",
+            type: .dynamic,
             targets: ["JanusSSHTunnelEngine"]
         )
     ],

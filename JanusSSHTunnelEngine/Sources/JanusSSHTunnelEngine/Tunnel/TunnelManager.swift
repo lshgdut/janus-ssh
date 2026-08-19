@@ -13,10 +13,10 @@ import Foundation
 /// 内部通过 Task 把重活转给后台。
 @MainActor
 @Observable
-final class TunnelManager {
+public final class TunnelManager {
 
     /// UI 直接观察
-    private(set) var tunnels: [UUID: Tunnel] = [:]
+    public private(set) var tunnels: [UUID: Tunnel] = [:]
 
     private let processManager: SSHProcessManaging
     private let portChecker: PortChecking
@@ -30,7 +30,7 @@ final class TunnelManager {
     /// 跟踪每个 profile 的事件观察 Task — unregister 时需要 cancel 避免泄漏
     private var observationTasks: [UUID: Task<Void, Never>] = [:]
 
-    init(
+    public init(
         processManager: SSHProcessManaging,
         portChecker: PortChecking,
         validator: ProfileValidator,
@@ -46,7 +46,7 @@ final class TunnelManager {
 
     // MARK: - Profile registry
 
-    func registerProfile(_ profile: Profile) {
+    public func registerProfile(_ profile: Profile) {
         profiles[profile.id] = profile
         if tunnels[profile.id] == nil {
             tunnels[profile.id] = Tunnel(
@@ -56,7 +56,7 @@ final class TunnelManager {
         }
     }
 
-    func unregisterProfile(id: UUID) {
+    public func unregisterProfile(id: UUID) {
         profiles.removeValue(forKey: id)
         tunnels.removeValue(forKey: id)
         // 取消正在进行的重连 + 事件观察任务
@@ -66,13 +66,13 @@ final class TunnelManager {
         observationTasks.removeValue(forKey: id)
     }
 
-    func tunnel(for profileID: UUID) -> Tunnel? {
+    public func tunnel(for profileID: UUID) -> Tunnel? {
         tunnels[profileID]
     }
 
     // MARK: - Commands
 
-    func start(profileID: UUID) async throws {
+    public func start(profileID: UUID) async throws {
         guard let profile = profiles[profileID] else {
             throw TunnelError.profileNotFound(profileID)
         }
@@ -167,7 +167,7 @@ final class TunnelManager {
         }
     }
 
-    func stop(profileID: UUID) async throws {
+    public func stop(profileID: UUID) async throws {
         guard profiles[profileID] != nil else {
             throw TunnelError.profileNotFound(profileID)
         }
@@ -179,7 +179,7 @@ final class TunnelManager {
                               message: "User requested stop")
     }
 
-    func restart(profileID: UUID) async throws {
+    public func restart(profileID: UUID) async throws {
         guard profiles[profileID] != nil else {
             throw TunnelError.profileNotFound(profileID)
         }
@@ -193,13 +193,13 @@ final class TunnelManager {
         try await start(profileID: profileID)
     }
 
-    func startAll() async throws {
+    public func startAll() async throws {
         for profile in profiles.values where profile.behavior.enabled {
             try? await start(profileID: profile.id)
         }
     }
 
-    func stopAll() async {
+    public func stopAll() async {
         await processManager.terminateAll(reason: .userRequested)
         for id in tunnels.keys {
             updateTunnel(id: id) { $0.state = .stopping }
@@ -286,7 +286,7 @@ final class TunnelManager {
     }
 }
 /// Sendable 弱引用包装 — 用于跨 actor 传递 self 避免 strong capture
-final class WeakSelf<T: AnyObject>: @unchecked Sendable {
+public final class WeakSelf<T: AnyObject>: @unchecked Sendable {
     weak var value: T?
-    init(_ value: T) { self.value = value }
+    public init(_ value: T) { self.value = value }
 }

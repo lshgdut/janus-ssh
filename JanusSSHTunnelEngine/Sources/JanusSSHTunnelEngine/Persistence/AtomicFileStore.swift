@@ -4,9 +4,10 @@ import Foundation
 ///
 /// 保证配置文件写入的原子性 — 即使 App 在写入过程中 crash,目标文件要么是旧版要么是新版,
 /// 不会有损坏的中间态。同时维护一个 `.bak` 文件保存上一次成功的内容,便于恢复。
-actor AtomicFileStore {
+public actor AtomicFileStore {
+    public init() {}
 
-    enum AtomicStoreError: Error {
+    public enum AtomicStoreError: Error {
         case writeFailed(underlying: Error)
         case renameFailed(underlying: Error)
         case fsyncFailed(underlying: Error)

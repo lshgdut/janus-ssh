@@ -10,7 +10,7 @@ struct SettingsView: View {
             header
             ScrollView {
                 VStack(spacing: 16) {
-                    Group(title: "通用", description: "应用启动行为与全局开关") {
+                    SettingsGroup(title: "通用", description: "应用启动行为与全局开关") {
                         ToggleRow(title: "Launch at Login",
                                   description: "登录 macOS 时自动启动 janus-ssh",
                                   isOn: settings.general.launchAtLogin,
@@ -32,7 +32,7 @@ struct SettingsView: View {
                                   })
                     }
 
-                    Group(title: "SSH 配置", description: "应用读取的 SSH Config 路径与解析选项") {
+                    SettingsGroup(title: "SSH 配置", description: "应用读取的 SSH Config 路径与解析选项") {
                         PathRow(title: "SSH Config Path",
                                 description: "默认 ~/.ssh/config",
                                 value: settings.ssh.configPath)
@@ -44,10 +44,11 @@ struct SettingsView: View {
                                   })
                         ActionRow(title: "Refresh on Demand",
                                    description: "点击后立即重新解析 SSH Config",
+                                   actionLabel: "Refresh Now",
                                    action: { Task { await container.sshHostManager.refresh() } })
                     }
 
-                    Group(title: "Tunnels", description: "Tunnel 进程管理") {
+                    SettingsGroup(title: "Tunnels", description: "Tunnel 进程管理") {
                         ToggleRow(title: "Auto Reconnect",
                                   description: "默认对所有新 Profile 启用。指数退避:1s/2s/5s/10s/30s",
                                   isOn: settings.tunnel.defaultAutoReconnect,
@@ -62,7 +63,7 @@ struct SettingsView: View {
                                   })
                     }
 
-                    Group(title: "存储与备份", description: "Profile 数据的存储与备份策略") {
+                    SettingsGroup(title: "存储与备份", description: "Profile 数据的存储与备份策略") {
                         PathRow(title: "Profiles File",
                                 description: "使用临时文件 + fsync + 原子 rename",
                                 value: "~/Library/Application Support/com.lshgdut.janus-ssh/profiles.json")
@@ -110,7 +111,6 @@ private struct SavedIndicator: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(.green).frame(width: 6, height: 6)
-                .scaleEffect(pulse ? ? 1.0 : 1.0)
             Text("All changes saved").font(.caption).fontWeight(.medium).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 10).padding(.vertical, 4)
@@ -119,7 +119,7 @@ private struct SavedIndicator: View {
     }
 }
 
-private struct Group<Content: View>: View {
+private struct SettingsGroup<Content: View>: View {
     let title: String
     let description: String
     @ViewBuilder let content: Content

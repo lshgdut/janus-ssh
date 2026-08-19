@@ -4,7 +4,7 @@ import Foundation
 ///
 /// `LocalizedError` 让 UI 可以直接 `.errorDescription` 拿到展示文案,
 /// `Equatable` 让日志系统能做去重。
-enum TunnelError: Error, LocalizedError, Equatable, Sendable {
+public enum TunnelError: Error, LocalizedError, Equatable, Sendable {
     case profileNotFound(UUID)
     case duplicateLocalPort(UInt16)
     case crossProfileLocalPortConflict(port: UInt16, occupiedBy: [UUID])
@@ -17,7 +17,7 @@ enum TunnelError: Error, LocalizedError, Equatable, Sendable {
     case authenticationFailed(host: String)
     case networkUnreachable(host: String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .profileNotFound(let id):
             return "Profile not found: \(id.uuidString.prefix(8))"

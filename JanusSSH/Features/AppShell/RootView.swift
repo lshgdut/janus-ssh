@@ -1,4 +1,5 @@
 import SwiftUI
+import JanusSSHTunnelEngine
 
 struct RootView: View {
     @Environment(AppContainer.self) private var container

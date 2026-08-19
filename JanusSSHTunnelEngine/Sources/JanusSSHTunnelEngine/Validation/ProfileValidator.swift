@@ -11,14 +11,15 @@ import Foundation
 /// 6. localHost / remoteHost 非空
 ///
 /// 跨 profile 校验需要单独的入口,因为需要传入"其他现存 profile"。
-struct ProfileValidator: Sendable {
+public struct ProfileValidator: Sendable {
+    public init() {}
 
     /// 单 profile 内的字段校验。
     ///
     /// - Parameters:
     ///   - profile: 待校验的 profile
     ///   - knownHosts: 从 `~/.ssh/config` 发现的 host alias 集合
-    func validate(
+    public func validate(
         _ profile: Profile,
         knownHosts: Set<String>
     ) -> [ValidationIssue] {

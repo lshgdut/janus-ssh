@@ -3,62 +3,155 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 71;
 	objects = {
-		B8A30CFA56331C20569CC5C4 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppContainer.swift"; sourceTree = "<group>"; };
-		CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppLifecycleManager.swift"; sourceTree = "<group>"; };
-		A6404DA58F428DF9DA54D366 /* JanusSSHApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JanusSSHApp.swift"; sourceTree = "<group>"; };
-		1397F81873971FF1B1FB6A06 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NotificationManager.swift"; sourceTree = "<group>"; };
-		EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SSHHostManager.swift"; sourceTree = "<group>"; };
-		9482A684D424C97D09E03615 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsManager.swift"; sourceTree = "<group>"; };
-		9234CF2D35FA4A63E2A23F87 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RootView.swift"; sourceTree = "<group>"; };
-		89C7792BB92E092F9CB90715 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarView.swift"; sourceTree = "<group>"; };
-		2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProfileEditorView.swift"; sourceTree = "<group>"; };
-		60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProfileListView.swift"; sourceTree = "<group>"; };
-		319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProfileRunningView.swift"; sourceTree = "<group>"; };
-		E4072D1F7644686574CF00A9 /* SSHHostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SSHHostListView.swift"; sourceTree = "<group>"; };
-		153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TunnelLogView.swift"; sourceTree = "<group>"; };
-		000E7C54DD782015431D1219 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
-		9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MenuBarView.swift"; sourceTree = "<group>"; };
-		F6C49E4434E4AB56F89617A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
-		76BD4D6B49A590282F3114B6 /* entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "entitlements"; sourceTree = "<group>"; };
-		15A6AFAEA1D907442C3DF4B7 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = B8A30CFA56331C20569CC5C4 /* entitlements */; };
-		525EF0420538B65C7488E91C /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = CFF8E7CC625AC5F03E2E7A1A /* entitlements */; };
-		1FE7BA235154E1BBDAB22254 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = A6404DA58F428DF9DA54D366 /* entitlements */; };
-		873FFD3E4A215FC97224DDBF /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 1397F81873971FF1B1FB6A06 /* entitlements */; };
-		B2BB224B7082EA7C73CB5BC8 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = EFDBB50FDF192AC87531B189 /* entitlements */; };
-		D5E806ECBD7133C2A1C3F65E /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 9482A684D424C97D09E03615 /* entitlements */; };
-		D0F2F68A95B3C045FBED5C5A /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 9234CF2D35FA4A63E2A23F87 /* entitlements */; };
-		581D927C599A41DB8EED1512 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 89C7792BB92E092F9CB90715 /* entitlements */; };
-		0FE61473E8CEE2B2BEF90785 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 2870B48F8EBE3F004621ABDB /* entitlements */; };
-		31CEB2F734D72D41A5D177CE /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 60D5DBD86BDCE8516D98E5EC /* entitlements */; };
-		75B8CAD57E29685459FDA358 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 319D0CEA7B9F2E9D1564C594 /* entitlements */; };
-		2AE2B9AD234F607CFCD3030C /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = E4072D1F7644686574CF00A9 /* entitlements */; };
-		54DA3771C994CD78D13C8CAE /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 153A0EC53280E6A2A8ADD67B /* entitlements */; };
-		2E4C4E1E2B62282F646EB4DE /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 000E7C54DD782015431D1219 /* entitlements */; };
-		15DC2038A18488D695F92105 /* entitlements in Sources */ = {isa = PBXBuildFile; fileRef = 9F3CC3F70FAC64657D9C6E5C /* entitlements */; };
-		ABA5864FDE335C485EA1D70F /* entitlements in Resources */ = {isa = PBXBuildFile; fileRef = F6C49E4434E4AB56F89617A9 /* entitlements */; };
-		1B4DE2EDC706E9A4CA3EF55C /* entitlements in Resources */ = {isa = PBXBuildFile; fileRef = 76BD4D6B49A590282F3114B6 /* entitlements */; };
-		/* FileSystemSynchronizedRootGroup for App/ */
-		AB438DF6EAD21C99D4E1D0B9 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
-		120F7FE792A79FFE399B3BD5 /* Presentation */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Presentation; sourceTree = "<group>"; };
+
+/* Begin PBXBuildFile section */
+		0FE61473E8CEE2B2BEF90785 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */; };
+		15A6AFAEA1D907442C3DF4B7 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A30CFA56331C20569CC5C4 /* AppContainer.swift */; };
+		15DC2038A18488D695F92105 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */; };
+		1B4DE2EDC706E9A4CA3EF55C /* JanusSSH.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = 76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */; };
+		1FE7BA235154E1BBDAB22254 /* JanusSSHApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6404DA58F428DF9DA54D366 /* JanusSSHApp.swift */; };
+		2AE2B9AD234F607CFCD3030C /* SSHHostListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4072D1F7644686574CF00A9 /* SSHHostListView.swift */; };
+		2E4C4E1E2B62282F646EB4DE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000E7C54DD782015431D1219 /* SettingsView.swift */; };
+		31CEB2F734D72D41A5D177CE /* ProfileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */; };
+		525EF0420538B65C7488E91C /* AppLifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */; };
+		54DA3771C994CD78D13C8CAE /* TunnelLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */; };
+		581D927C599A41DB8EED1512 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C7792BB92E092F9CB90715 /* SidebarView.swift */; };
+		75B8CAD57E29685459FDA358 /* ProfileRunningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */; };
+		873FFD3E4A215FC97224DDBF /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1397F81873971FF1B1FB6A06 /* NotificationManager.swift */; };
+		917A65880104ADB60F0C12AC /* JanusSSHTunnelEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B09346A45BCE50DAF5B97C30 /* JanusSSHTunnelEngine */; };
+		ABA5864FDE335C485EA1D70F /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F6C49E4434E4AB56F89617A9 /* Info.plist */; };
+		B2BB224B7082EA7C73CB5BC8 /* SSHHostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */; };
+		CAFE000000000000000B0001 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0001 /* AppColors.swift */; };
+		CAFE000000000000000B0002 /* AppFonts.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0002 /* AppFonts.swift */; };
+		CAFE000000000000000B0003 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0003 /* AppTheme.swift */; };
+		CAFE000000000000000B0010 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0010 /* StatusBadge.swift */; };
+		CAFE000000000000000B0011 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0011 /* EmptyStateView.swift */; };
+		CAFE000000000000000B0020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0020 /* Assets.xcassets */; };
+		D0F2F68A95B3C045FBED5C5A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9234CF2D35FA4A63E2A23F87 /* RootView.swift */; };
+		D5E806ECBD7133C2A1C3F65E /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9482A684D424C97D09E03615 /* SettingsManager.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000E7C54DD782015431D1219 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		1397F81873971FF1B1FB6A06 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelLogView.swift; sourceTree = "<group>"; };
+		2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
+		319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRunningView.swift; sourceTree = "<group>"; };
+		60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileListView.swift; sourceTree = "<group>"; };
+		76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JanusSSH.entitlements; sourceTree = "<group>"; };
+		89C7792BB92E092F9CB90715 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		9234CF2D35FA4A63E2A23F87 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		9482A684D424C97D09E03615 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
+		9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		A6404DA58F428DF9DA54D366 /* JanusSSHApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JanusSSHApp.swift; sourceTree = "<group>"; };
+		B8A30CFA56331C20569CC5C4 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0001 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0002 /* AppFonts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFonts.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0003 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0010 /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0011 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleManager.swift; sourceTree = "<group>"; };
+		E4072D1F7644686574CF00A9 /* SSHHostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostListView.swift; sourceTree = "<group>"; };
+		EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostManager.swift; sourceTree = "<group>"; };
+		F5BF48AA40CAD7891EB709FC /* JanusSSH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JanusSSH.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F6C49E4434E4AB56F89617A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		29B2D46AA747A59804D46E1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				917A65880104ADB60F0C12AC /* JanusSSHTunnelEngine in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		053946F24B909DD6794B8AE7 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				9BDA3D7D296E2C83A3E6297C /* AppShell */,
+				6CC861D38ADA92BE80B10205 /* Profiles */,
+				E2165FC23E9E9AD7CE5EE2F8 /* Hosts */,
+				D1251E3EECE06E82A214811E /* TunnelLog */,
+				33250EB94151AE7B521566A3 /* Settings */,
+				08258536D20BEBB3451E2FC3 /* MenuBar */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		08258536D20BEBB3451E2FC3 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		095FEE2E633C50D24407F2D6 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B8A30CFA56331C20569CC5C4 /* AppContainer.swift */,
+				CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */,
+				A6404DA58F428DF9DA54D366 /* JanusSSHApp.swift */,
+				1397F81873971FF1B1FB6A06 /* NotificationManager.swift */,
+				EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */,
+				9482A684D424C97D09E03615 /* SettingsManager.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		0ECEC165EE4DFB177DC80E73 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F6C49E4434E4AB56F89617A9 /* Info.plist */,
+				76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */,
+				CAFE000000000000000A0020 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		33250EB94151AE7B521566A3 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				000E7C54DD782015431D1219 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		5928955287B8089ED2177128 = {
 			isa = PBXGroup;
 			children = (
-				AB438DF6EAD21C99D4E1D0B9 /* App */,
-				120F7FE792A79FFE399B3BD5 /* Presentation */,
-				887A6F90336FF23D95C3914B /* Resources */,
+				095FEE2E633C50D24407F2D6 /* App */,
+				053946F24B909DD6794B8AE7 /* Features */,
+				0ECEC165EE4DFB177DC80E73 /* Resources */,
+				CAFE000000000000000D0001 /* UI */,
 				BF7A2D27A78D590BDEF15AF2 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		887A6F90336FF23D95C3914B /* Resources */ = {
+		6CC861D38ADA92BE80B10205 /* Profiles */ = {
 			isa = PBXGroup;
 			children = (
-				F6C49E4434E4AB56F89617A9 /* Info.plist */,
-				76BD4D6B49A590282F3114B6 /* entitlements */,
+				2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */,
+				60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */,
+				319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */,
 			);
-			path = Resources;
+			path = Profiles;
+			sourceTree = "<group>";
+		};
+		9BDA3D7D296E2C83A3E6297C /* AppShell */ = {
+			isa = PBXGroup;
+			children = (
+				9234CF2D35FA4A63E2A23F87 /* RootView.swift */,
+				89C7792BB92E092F9CB90715 /* SidebarView.swift */,
+			);
+			path = AppShell;
 			sourceTree = "<group>";
 		};
 		BF7A2D27A78D590BDEF15AF2 /* Products */ = {
@@ -69,46 +162,53 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		AB438DF6EAD21C99D4E1D0B9 /* App */.membershipExceptions = (
-		E7209FB05162B7572F88D05E /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				15A6AFAEA1D907442C3DF4B7 /* AppContainer.swift in Sources */,
-				525EF0420538B65C7488E91C /* AppLifecycleManager.swift in Sources */,
-				1FE7BA235154E1BBDAB22254 /* JanusSSHApp.swift in Sources */,
-				873FFD3E4A215FC97224DDBF /* NotificationManager.swift in Sources */,
-				B2BB224B7082EA7C73CB5BC8 /* SSHHostManager.swift in Sources */,
-				D5E806ECBD7133C2A1C3F65E /* SettingsManager.swift in Sources */,
-				D0F2F68A95B3C045FBED5C5A /* RootView.swift in Sources */,
-				581D927C599A41DB8EED1512 /* SidebarView.swift in Sources */,
-				0FE61473E8CEE2B2BEF90785 /* ProfileEditorView.swift in Sources */,
-				31CEB2F734D72D41A5D177CE /* ProfileListView.swift in Sources */,
-				75B8CAD57E29685459FDA358 /* ProfileRunningView.swift in Sources */,
-				2AE2B9AD234F607CFCD3030C /* SSHHostListView.swift in Sources */,
-				54DA3771C994CD78D13C8CAE /* TunnelLogView.swift in Sources */,
-				2E4C4E1E2B62282F646EB4DE /* SettingsView.swift in Sources */,
-				15DC2038A18488D695F92105 /* MenuBarView.swift in Sources */,
+		CAFE000000000000000C0001 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				CAFE000000000000000A0001 /* AppColors.swift */,
+				CAFE000000000000000A0002 /* AppFonts.swift */,
+				CAFE000000000000000A0003 /* AppTheme.swift */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+			path = Theme;
+			sourceTree = "<group>";
 		};
-		29B2D46AA747A59804D46E1F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				917A65880104ADB60F0C12AC /* JanusSSHTunnelEngine in Frameworks */,
+		CAFE000000000000000C0002 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				CAFE000000000000000A0010 /* StatusBadge.swift */,
+				CAFE000000000000000A0011 /* EmptyStateView.swift */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+			path = Components;
+			sourceTree = "<group>";
 		};
-		66F8606E9F0A136E2228EBCB /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				ABA5864FDE335C485EA1D70F /* Info.plist in Resources */,
-				1B4DE2EDC706E9A4CA3EF55C /* entitlements in Resources */,
+		CAFE000000000000000D0001 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				CAFE000000000000000C0001 /* Theme */,
+				CAFE000000000000000C0002 /* Components */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+			path = UI;
+			sourceTree = "<group>";
 		};
+		D1251E3EECE06E82A214811E /* TunnelLog */ = {
+			isa = PBXGroup;
+			children = (
+				153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */,
+			);
+			path = TunnelLog;
+			sourceTree = "<group>";
+		};
+		E2165FC23E9E9AD7CE5EE2F8 /* Hosts */ = {
+			isa = PBXGroup;
+			children = (
+				E4072D1F7644686574CF00A9 /* SSHHostListView.swift */,
+			);
+			path = Hosts;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
 		42AEFBAE01D2DFD981F7DA7D /* JanusSSH */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AFD04581184175117C78D9AC /* Build configuration list for PBXNativeTarget "JanusSSH" */;
@@ -123,16 +223,15 @@
 			);
 			name = JanusSSH;
 			packageProductDependencies = (
-				4703E08AF92891B84A37B685 /* JanusSSHTunnelEngine */,
+				B09346A45BCE50DAF5B97C30 /* JanusSSHTunnelEngine */,
 			);
 			productName = JanusSSH;
 			productReference = F5BF48AA40CAD7891EB709FC /* JanusSSH.app */;
 			productType = "com.apple.product-type.application";
 		};
-		F5BF48AA40CAD7891EB709FC /* JanusSSH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JanusSSH.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		60A9CE1158622DDD1BF0380F /* JanusSSHTunnelEngine */ = {isa = XCLocalSwiftPackageReference; relativePath = ../JanusSSHTunnelEngine; };
-		4703E08AF92891B84A37B685 /* JanusSSHTunnelEngine */ = {isa = XCSwiftPackageProductDependency; package = 60A9CE1158622DDD1BF0380F /* JanusSSHTunnelEngine */; productName = JanusSSHTunnelEngine; };
-		917A65880104ADB60F0C12AC /* JanusSSHTunnelEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 4703E08AF92891B84A37B685 /* JanusSSHTunnelEngine */; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
 		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
@@ -155,7 +254,7 @@
 			);
 			mainGroup = 5928955287B8089ED2177128;
 			packageReferences = (
-				60A9CE1158622DDD1BF0380F /* JanusSSHTunnelEngine */,
+				60A9CE1158622DDD1BF0380F /* XCLocalSwiftPackageReference "../JanusSSHTunnelEngine" */,
 			);
 			productRefGroup = BF7A2D27A78D590BDEF15AF2 /* Products */;
 			projectDirPath = "";
@@ -164,8 +263,94 @@
 				42AEFBAE01D2DFD981F7DA7D /* JanusSSH */,
 			);
 		};
-	};
-	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		66F8606E9F0A136E2228EBCB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABA5864FDE335C485EA1D70F /* Info.plist in Resources */,
+				1B4DE2EDC706E9A4CA3EF55C /* JanusSSH.entitlements in Resources */,
+				CAFE000000000000000B0020 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E7209FB05162B7572F88D05E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				15A6AFAEA1D907442C3DF4B7 /* AppContainer.swift in Sources */,
+				525EF0420538B65C7488E91C /* AppLifecycleManager.swift in Sources */,
+				1FE7BA235154E1BBDAB22254 /* JanusSSHApp.swift in Sources */,
+				873FFD3E4A215FC97224DDBF /* NotificationManager.swift in Sources */,
+				B2BB224B7082EA7C73CB5BC8 /* SSHHostManager.swift in Sources */,
+				D5E806ECBD7133C2A1C3F65E /* SettingsManager.swift in Sources */,
+				D0F2F68A95B3C045FBED5C5A /* RootView.swift in Sources */,
+				581D927C599A41DB8EED1512 /* SidebarView.swift in Sources */,
+				0FE61473E8CEE2B2BEF90785 /* ProfileEditorView.swift in Sources */,
+				31CEB2F734D72D41A5D177CE /* ProfileListView.swift in Sources */,
+				75B8CAD57E29685459FDA358 /* ProfileRunningView.swift in Sources */,
+				2AE2B9AD234F607CFCD3030C /* SSHHostListView.swift in Sources */,
+				54DA3771C994CD78D13C8CAE /* TunnelLogView.swift in Sources */,
+				2E4C4E1E2B62282F646EB4DE /* SettingsView.swift in Sources */,
+				15DC2038A18488D695F92105 /* MenuBarView.swift in Sources */,
+				CAFE000000000000000B0001 /* AppColors.swift in Sources */,
+				CAFE000000000000000B0002 /* AppFonts.swift in Sources */,
+				CAFE000000000000000B0003 /* AppTheme.swift in Sources */,
+				CAFE000000000000000B0010 /* StatusBadge.swift in Sources */,
+				CAFE000000000000000B0011 /* EmptyStateView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		80BB3E01927863D718CAEC94 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = Resources/JanusSSH.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lshgdut.janus-ssh";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 		A3FA7BC046E62B1245F73497 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -175,23 +360,26 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_TESTABILITY = YES;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
-				ONLY_ACTIVE_ARCH = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
 			};
-			name = "{name}";
+			name = Debug;
 		};
 		E635DC0A16885DF2F7BE774B /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -203,7 +391,6 @@
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -211,62 +398,64 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
 			};
-			name = "{name}";
+			name = Release;
 		};
 		EA519AEBFC56C3FABDB22367 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = JanusSSH/Resources/JanusSSH.entitlements;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = Resources/JanusSSH.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGNING_ALLOWED = NO;
+				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = JanusSSH/Resources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.lshgdut.janus-ssh";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
 			};
-			name = "{name}";
+			name = Debug;
 		};
-		80BB3E01927863D718CAEC94 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = JanusSSH/Resources/JanusSSH.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGNING_ALLOWED = NO;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = JanusSSH/Resources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.lshgdut.janus-ssh";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-			};
-			name = "{name}";
-		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
 		022E0F2E8ECAC35F5510DD6F /* Build configuration list for PBXProject "JanusSSH" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -285,5 +474,22 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-}
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		60A9CE1158622DDD1BF0380F /* XCLocalSwiftPackageReference "../JanusSSHTunnelEngine" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../JanusSSHTunnelEngine;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B09346A45BCE50DAF5B97C30 /* JanusSSHTunnelEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 60A9CE1158622DDD1BF0380F /* XCLocalSwiftPackageReference "../JanusSSHTunnelEngine" */;
+			productName = JanusSSHTunnelEngine;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
 }

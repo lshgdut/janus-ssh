@@ -2,14 +2,14 @@ import Foundation
 
 /// SSHProcessHandle 是 SSHProcess 的对外接口 — 让 TunnelManager 不直接依赖 SSHProcess。
 /// 实际生产实现就是 SSHProcess;测试中可用 FakeSSHProcessHandle。
-protocol SSHProcessHandle: Sendable {
+public protocol SSHProcessHandle: Sendable {
     func events() async -> AsyncStream<SSHProcess.Event>
     func terminate(gracefully: Bool) async throws
     func pid() async -> Int32?
 }
 
 /// SSHProcessManager 协议 — 抽象层让 TunnelManager 可测试
-protocol SSHProcessManaging: Sendable {
+public protocol SSHProcessManaging: Sendable {
     func launch(profileID: UUID, command: SSHCommand) async throws -> SSHProcessHandle
     func terminate(profileID: UUID, reason: TerminationReason) async
     func terminateAll(reason: TerminationReason) async
@@ -17,11 +17,12 @@ protocol SSHProcessManaging: Sendable {
 }
 
 /// 默认实现 — 用 SSHProcess actor
-actor SSHProcessManager: SSHProcessManaging {
+public actor SSHProcessManager: SSHProcessManaging {
+    public init() {}
     private var handles: [UUID: SSHProcessHandle] = [:]
     private var processes: [UUID: SSHProcess] = [:]
 
-    func launch(profileID: UUID, command: SSHCommand) async throws -> SSHProcessHandle {
+    public func launch(profileID: UUID, command: SSHCommand) async throws -> SSHProcessHandle {
         let proc = try SSHProcess(
             executable: command.executable,
             arguments: command.arguments,
@@ -33,7 +34,7 @@ actor SSHProcessManager: SSHProcessManaging {
         return proc
     }
 
-    func terminate(profileID: UUID, reason: TerminationReason) async {
+    public func terminate(profileID: UUID, reason: TerminationReason) async {
         guard let proc = processes[profileID] else { return }
         // userRequested / applicationShutdown 用 SIGTERM(graceful)
         // processExited / startupFailure 应该已经在外面处理
@@ -48,14 +49,14 @@ actor SSHProcessManager: SSHProcessManaging {
         processes.removeValue(forKey: profileID)
     }
 
-    func terminateAll(reason: TerminationReason) async {
+    public func terminateAll(reason: TerminationReason) async {
         let ids = Array(processes.keys)
         for id in ids {
             await terminate(profileID: id, reason: reason)
         }
     }
 
-    func handle(for profileID: UUID) async -> SSHProcessHandle? {
+    public func handle(for profileID: UUID) async -> SSHProcessHandle? {
         handles[profileID]
     }
 }

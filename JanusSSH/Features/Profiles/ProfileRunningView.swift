@@ -27,7 +27,7 @@ struct ProfileRunningView: View {
             HStack {
                 Text(profile.name).font(.title).fontWeight(.medium)
                 if let t = tunnel {
-                    StatusPill(state: t.state)
+                    StatusBadge(state: t.state)
                     Text("PID \(t.pid ?? 0)").font(.caption).foregroundStyle(.secondary)
                         .padding(.horizontal, 8).padding(.vertical, 2)
                         .background(.quaternary, in: Capsule())

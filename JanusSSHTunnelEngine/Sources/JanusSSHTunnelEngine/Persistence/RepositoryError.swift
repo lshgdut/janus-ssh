@@ -1,12 +1,12 @@
 import Foundation
 
 /// Repository 错误
-enum RepositoryError: Error, LocalizedError, Equatable, Sendable {
+public enum RepositoryError: Error, LocalizedError, Equatable, Sendable {
     case fileNotFound(URL)
     case decodeFailed(String)
     case unsupportedVersion(found: Int, supported: Int)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .fileNotFound(let url):
             return "Profile file not found: \(url.lastPathComponent)"

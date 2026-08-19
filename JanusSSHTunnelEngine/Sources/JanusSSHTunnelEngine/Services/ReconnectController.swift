@@ -5,13 +5,13 @@ import Foundation
 /// 关键设计:严格区分 TerminationReason。
 /// - .userRequested / .applicationShutdown → 永不重连
 /// - .processExited / .startupFailure → 重连
-actor ReconnectController {
+public actor ReconnectController {
 
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var attemptCounts: [UUID: Int] = [:]
     private let defaultPolicy: BackoffPolicy
 
-    init(policy: BackoffPolicy = .defaults) {
+    public init(policy: BackoffPolicy = .defaults) {
         self.defaultPolicy = policy
     }
 
@@ -36,13 +36,13 @@ actor ReconnectController {
     }
 
     /// 取消重连(用户主动 Stop 时调用)
-    func cancel(profileID: UUID) {
+    public func cancel(profileID: UUID) {
         tasks[profileID]?.cancel()
         tasks.removeValue(forKey: profileID)
         attemptCounts.removeValue(forKey: profileID)
     }
 
-    func cancelAll() {
+    public func cancelAll() {
         for (_, task) in tasks {
             task.cancel()
         }
