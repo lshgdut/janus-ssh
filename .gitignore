@@ -24,6 +24,9 @@ xcuserdata/
 *.xcscmblueprint
 *.xccheckout
 
+# 我们的项目:提交 .xcodeproj 文件(其他 Xcode 工程仍然忽略)
+!JanusSSH/JanusSSH.xcodeproj/
+
 # Swift Package Manager
 .swiftpm/
 .build/
