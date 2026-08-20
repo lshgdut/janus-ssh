@@ -75,3 +75,6 @@ logs/
 *.bak
 *.tmp
 *.swp
+# Build artifacts — should not be committed
+*.dmg
+build/
