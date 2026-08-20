@@ -90,6 +90,7 @@ struct SSHHostListView: View {
                 ForEach(filteredHosts) { host in
                     HostCard(
                         host: host,
+                        container: container,
                         testing: testingAlias == host.alias,
                         onTest: { testConnection(alias: host.alias) }
                     )
@@ -123,6 +124,7 @@ struct SSHHostListView: View {
 
 private struct HostCard: View {
     let host: SSHHost
+    let container: AppContainer
     let testing: Bool
     let onTest: () -> Void
     @State private var hovering = false
@@ -131,6 +133,7 @@ private struct HostCard: View {
         VStack(alignment: .leading, spacing: 10) {
             // Header row: alias + status + actions
             HStack(alignment: .center, spacing: 12) {
+                HostStatusBadge(result: container.sshHostManager.result(for: host.alias))
                 Text(host.alias)
                     .font(.system(.title3, design: .monospaced))
                     .fontWeight(.semibold)
@@ -138,7 +141,11 @@ private struct HostCard: View {
                     ProxyChip(name: pj)
                 }
                 Spacer()
-                TestButton(testing: testing, action: onTest)
+                TestButton(
+                    testing: testing,
+                    result: container.sshHostManager.result(for: host.alias),
+                    action: onTest
+                )
             }
 
             // Connection line: user@host:port
@@ -185,10 +192,21 @@ private struct HostCard: View {
 // MARK: - Status badge
 
 private struct HostStatusBadge: View {
+    let result: SSHHostManager.TestResult?
+
     var body: some View {
         Circle()
-            .fill(Color.gray.opacity(0.4))
+            .fill(color)
             .frame(width: 8, height: 8)
+    }
+
+    private var color: Color {
+        guard let r = result else { return .gray.opacity(0.4) }
+        switch r.outcome {
+        case .reachable: return .green
+        case .unreachable: return .red
+        case .timeout: return .orange
+        }
     }
 }
 
@@ -217,22 +235,85 @@ private struct ProxyChip: View {
 
 private struct TestButton: View {
     let testing: Bool
+    let result: SSHHostManager.TestResult?
     let action: () -> Void
+
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if testing {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "bolt.horizontal")
-                        .imageScale(.small)
+        VStack(alignment: .trailing, spacing: 2) {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    if testing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: iconName)
+                            .imageScale(.small)
+                            .foregroundStyle(iconColor)
+                    }
+                    Text(label).foregroundStyle(labelColor)
                 }
-                Text("Test")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(testing)
+
+            if let r = result, !testing {
+                Text(detail(for: r))
+                    .font(.caption2)
+                    .foregroundStyle(detailColor(for: r))
             }
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .disabled(testing)
+    }
+
+    private var iconName: String {
+        guard let r = result else { return "bolt.horizontal" }
+        switch r.outcome {
+        case .reachable: return "checkmark.circle.fill"
+        case .unreachable: return "xmark.circle.fill"
+        case .timeout: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        guard let r = result else { return .secondary }
+        switch r.outcome {
+        case .reachable: return .green
+        case .unreachable: return .red
+        case .timeout: return .orange
+        }
+    }
+
+    private var label: String {
+        guard let r = result else { return "Test" }
+        switch r.outcome {
+        case .reachable: return "Tested"
+        case .unreachable: return "Retry"
+        case .timeout: return "Timeout"
+        }
+    }
+
+    private var labelColor: Color {
+        guard let r = result else { return .primary }
+        switch r.outcome {
+        case .reachable: return .green
+        case .unreachable: return .red
+        case .timeout: return .orange
+        }
+    }
+
+    private func detail(for r: SSHHostManager.TestResult) -> String {
+        let timeAgo = r.testedAt.formatted(.relative(presentation: .named))
+        switch r.outcome {
+        case .reachable: return "成功 · \(timeAgo)"
+        case .unreachable(let reason): return "失败 · \(reason) · \(timeAgo)"
+        case .timeout: return "超时 · \(timeAgo)"
+        }
+    }
+
+    private func detailColor(for r: SSHHostManager.TestResult) -> Color {
+        switch r.outcome {
+        case .reachable: return .secondary
+        default: return .red.opacity(0.85)
+        }
     }
 }
 
