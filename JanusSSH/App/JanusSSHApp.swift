@@ -48,13 +48,59 @@ extension Notification.Name {
 }
 
 extension JanusSSHApp {
-    /// 构造 menu bar 图标 — SF Symbol 转成 template NSImage
-    /// macOS 看到 .alwaysTemplate 会自动反色适配 light/dark menu bar
+    /// 构造 menu bar 图标 — 复用 AppIcon 的 Janus 双弧设计
+    /// 用 Core Graphics 直接画到 NSImage,单色 template
+    /// macOS 看到 isTemplate=true 会自动反色(light → 黑,dark → 白)
     fileprivate func makeMenuBarIcon() -> NSImage {
-        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-        let image = NSImage(systemSymbolName: "antenna.radiowaves.left.and.right",
-                            accessibilityDescription: "Janus SSH")?
-            .withSymbolConfiguration(config) ?? NSImage()
+        let size = CGFloat(32)  // @2x 实际渲染尺寸
+        let image = NSImage(size: NSSize(width: size, height: size))
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return image }
+        ctx.setShouldAntialias(true)
+        ctx.setAllowsAntialiasing(true)
+        ctx.interpolationQuality = .high
+
+        // 颜色:全黑(纯 alpha)— macOS 反色后会变成白
+        NSColor.black.setStroke()
+        NSColor.black.setFill()
+
+        let lineWidth = size * 0.14
+        ctx.setLineWidth(lineWidth)
+        ctx.setLineCap(.round)
+
+        // 左弧 (开口向右,代表 Janus 一张脸)
+        let leftCx = size * 0.5 - size * 0.13
+        let arcR = size * 0.21
+        ctx.addArc(
+            center: CGPoint(x: leftCx, y: size * 0.5),
+            radius: arcR,
+            startAngle: 30, endAngle: 330,
+            clockwise: false
+        )
+        ctx.strokePath()
+
+        // 右弧 (开口向左,代表 Janus 另一张脸)
+        let rightCx = size * 0.5 + size * 0.13
+        ctx.addArc(
+            center: CGPoint(x: rightCx, y: size * 0.5),
+            radius: arcR,
+            startAngle: 150, endAngle: 90,
+            clockwise: false
+        )
+        ctx.strokePath()
+
+        // 中心点 — 隧道焦点
+        let dotR = size * 0.08
+        let dotRect = CGRect(
+            x: size * 0.5 - dotR,
+            y: size * 0.5 - dotR,
+            width: dotR * 2, height: dotR * 2
+        )
+        ctx.fillEllipse(in: dotRect)
+
+        // 关键:标记为 template — macOS 自动反色
         image.isTemplate = true
         return image
     }
