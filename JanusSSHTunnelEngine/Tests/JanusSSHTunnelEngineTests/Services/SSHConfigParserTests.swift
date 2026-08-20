@@ -100,4 +100,103 @@ final class SSHConfigParserTests: XCTestCase {
                        ["production", "staging", "bastion", "private-server"])
         XCTAssertEqual(entries[3].options[.proxyJump], "bastion")
     }
+
+    // MARK: - Include (recursive, glob, cycle-safe)
+
+    func test_include_resolves_relative_path() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("janus-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        try """
+        Host dev-server
+            HostName dev.local
+            User developer
+        """.write(to: tempDir.appendingPathComponent("hosts.conf"),
+                  atomically: true, encoding: .utf8)
+
+        try """
+        Host main-server
+            HostName main.local
+
+        Include hosts.conf
+        """.write(to: tempDir.appendingPathComponent("config"),
+                  atomically: true, encoding: .utf8)
+
+        let entries = SSHConfigParser.parse(
+            try String(contentsOf: tempDir.appendingPathComponent("config"), encoding: .utf8),
+            basePath: tempDir.appendingPathComponent("config").path
+        )
+        let aliases = Set(entries.map { $0.alias })
+        XCTAssertTrue(aliases.contains("main-server"))
+        XCTAssertTrue(aliases.contains("dev-server"),
+                      "Include 应该递归解析 hosts.conf 中的 dev-server")
+    }
+
+    func test_include_supports_glob_star() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("janus-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        for name in ["hosts-prod.conf", "hosts-stage.conf", "readme.txt"] {
+            try "Host \(name)\n    HostName 1.2.3.4\n".write(
+                to: tempDir.appendingPathComponent(name),
+                atomically: true, encoding: .utf8
+            )
+        }
+
+        try "Include hosts-*.conf\n".write(
+            to: tempDir.appendingPathComponent("config"),
+            atomically: true, encoding: .utf8
+        )
+
+        let entries = SSHConfigParser.parse(
+            try String(contentsOf: tempDir.appendingPathComponent("config"), encoding: .utf8),
+            basePath: tempDir.appendingPathComponent("config").path
+        )
+        let aliases = Set(entries.map { $0.alias })
+        XCTAssertTrue(aliases.contains("hosts-prod.conf"))
+        XCTAssertTrue(aliases.contains("hosts-stage.conf"))
+        XCTAssertFalse(aliases.contains("readme.txt"),
+                       "glob 不应匹配 readme.txt")
+    }
+
+    func test_include_prevents_circular_reference() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("janus-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        try "Include b.conf\nHost a\n    HostName a.local\n".write(
+            to: tempDir.appendingPathComponent("a.conf"),
+            atomically: true, encoding: .utf8
+        )
+        try "Include a.conf\nHost b\n    HostName b.local\n".write(
+            to: tempDir.appendingPathComponent("b.conf"),
+            atomically: true, encoding: .utf8
+        )
+
+        let entries = SSHConfigParser.parse(
+            try String(contentsOf: tempDir.appendingPathComponent("a.conf"), encoding: .utf8),
+            basePath: tempDir.appendingPathComponent("a.conf").path
+        )
+        // 不能死循环;两条 host 都该出现
+        let aliases = Set(entries.map { $0.alias })
+        XCTAssertTrue(aliases.contains("a"))
+        XCTAssertTrue(aliases.contains("b"))
+    }
+
+    func test_missing_include_file_is_silently_skipped() {
+        let content = """
+        Include /tmp/does-not-exist-\(UUID().uuidString).conf
+
+        Host existing
+            HostName example.com
+        """
+        let entries = SSHConfigParser.parse(content, basePath: nil)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.alias, "existing")
+    }
 }

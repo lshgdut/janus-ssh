@@ -262,9 +262,93 @@ struct Verify {
         print(String(repeating: "─", count: 50))
         print("Result: \(passed) passed, \(failed) failed")
 
+        // ─── M3+: SSHConfigParser Include 递归 / glob / 循环保护 ───
+        runIncludeTests(into: { lbl, ok in
+            if ok { passed += 1; print("✓ \(lbl)") }
+            else { failed += 1; print("✗ \(lbl)") }
+        })
+
         if failed > 0 {
             exit(1)
         }
+    }
+
+    /// SSHConfigParser 的 Include 行为要对齐 OpenSSH:
+    /// - 路径相对当前 config 所在目录
+    /// - 支持 glob 通配符
+    /// - 防止循环引用
+    static func runIncludeTests(into report: (String, Bool) -> Void) {
+        func checkRelative() {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("janus-incl-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            try? "Host dev\n    HostName d.l\n".write(
+                to: tempDir.appendingPathComponent("hosts.conf"),
+                atomically: true, encoding: .utf8
+            )
+            try? "Host main\n    HostName m.l\n\nInclude hosts.conf\n".write(
+                to: tempDir.appendingPathComponent("config"),
+                atomically: true, encoding: .utf8
+            )
+            let main = tempDir.appendingPathComponent("config")
+            let content = (try? String(contentsOf: main, encoding: .utf8)) ?? ""
+            let entries = SSHConfigParser.parse(content, basePath: main.path)
+            let aliases = Set(entries.map { $0.alias })
+            if !(aliases.contains("main") && aliases.contains("dev")) {
+                print("DEBUG relative: aliases=\(aliases) entries=\(entries.count) basePath=\(main.path)")
+                print("DEBUG content=\(content.debugDescription)")
+            }
+            report("Include relative path resolves",
+                   aliases.contains("main") && aliases.contains("dev"))
+        }
+
+        func checkGlob() {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("janus-glob-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            for name in ["h-prod.conf", "h-stage.conf", "readme.txt"] {
+                try? "Host \(name)\n    HostName 1.1.1.1\n".write(
+                    to: tempDir.appendingPathComponent(name),
+                    atomically: true, encoding: .utf8
+                )
+            }
+            let main = tempDir.appendingPathComponent("config")
+            try? "Include h-*.conf\n".write(to: main, atomically: true, encoding: .utf8)
+            let content = (try? String(contentsOf: main, encoding: .utf8)) ?? ""
+            let entries = SSHConfigParser.parse(content, basePath: main.path)
+            let aliases = Set(entries.map { $0.alias })
+            report("Include glob * matches multiple files",
+                   aliases.contains("h-prod.conf")
+                   && aliases.contains("h-stage.conf")
+                   && !aliases.contains("readme.txt"))
+        }
+
+        func checkCycle() {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("janus-cycle-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            try? "Include b.conf\nHost a\n    HostName a.l\n".write(
+                to: tempDir.appendingPathComponent("a.conf"),
+                atomically: true, encoding: .utf8
+            )
+            try? "Include a.conf\nHost b\n    HostName b.l\n".write(
+                to: tempDir.appendingPathComponent("b.conf"),
+                atomically: true, encoding: .utf8
+            )
+            let main = tempDir.appendingPathComponent("a.conf")
+            let content = (try? String(contentsOf: main, encoding: .utf8)) ?? ""
+            let entries = SSHConfigParser.parse(content, basePath: main.path)
+            let aliases = Set(entries.map { $0.alias })
+            report("Include cycle doesn't infinite loop",
+                   aliases.contains("a") && aliases.contains("b"))
+        }
+
+        checkRelative()
+        checkGlob()
+        checkCycle()
     }
 }
 
