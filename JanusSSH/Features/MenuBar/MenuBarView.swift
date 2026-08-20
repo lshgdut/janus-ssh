@@ -4,18 +4,20 @@ import JanusSSHTunnelEngine
 
 struct MenuBarView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider().background(.white.opacity(0.1))
+            Divider()
             runningSection
-            Divider().background(.white.opacity(0.1))
+            Divider()
             actions
         }
         .frame(width: 340)
-        .background(.black.opacity(0.9))
-        .foregroundStyle(.white)
+        // 用 system 背景 + material,自动适配 light/dark
+        .background(.regularMaterial)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var header: some View {
@@ -23,6 +25,7 @@ struct MenuBarView: View {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .foregroundStyle(Color.accentColor)
             Text("janus-ssh").bold()
+                .foregroundStyle(.primary)
             Spacer()
             let running = container.tunnelManager.tunnels.values.filter {
                 $0.state == .running || $0.state == .starting
@@ -58,15 +61,14 @@ struct MenuBarView: View {
             MenuBarItem(label: "Stop All", shortcut: "⌥⌘X") {
                 Task { await container.tunnelManager.stopAll() }
             }
-            Divider().background(.white.opacity(0.1))
+            Divider()
             MenuBarItem(label: "Open Application", shortcut: "⌘1") {
                 NSApp.activate(ignoringOtherApps: true)
-                // Open main window via SwiftUI
                 if let url = URL(string: "janusssh://main") {
                     NSWorkspace.shared.open(url)
                 }
             }
-            MenuBarItem(label: "Settings…", shortcut: "⌘,") {
+            MenuBarItem(label: "Settings…", shortcut: "⌥⌘,") {
                 if #available(macOS 14, *) {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 }
@@ -74,7 +76,7 @@ struct MenuBarView: View {
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
                 Task { await container.sshHostManager.refresh() }
             }
-            Divider().background(.white.opacity(0.1))
+            Divider()
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
                 NSApp.terminate(nil)
             }
@@ -93,22 +95,22 @@ private struct MenuBarProfileRow: View {
             HStack(spacing: 12) {
                 StatusBadge(state: tunnel.state, style: .compact)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(profile.name).font(.body).foregroundStyle(.white)
+                    Text(profile.name).font(.body)
+                        .foregroundStyle(.primary)
                     Text("\(profile.forwards.count) forwards")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if hovering {
-                    Text("Stop").font(.caption).foregroundStyle(.white)
+                    Text("Stop").font(.caption).foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
         }
         .buttonStyle(.plain)
-        .background(hovering ? Color.white.opacity(0.06) : Color.clear)
+        .background(hovering ? Color.accentColor.opacity(0.15) : Color.clear)
         .onHover { hovering = $0 }
     }
-
 }
 
 private struct MenuBarItem: View {
@@ -116,18 +118,19 @@ private struct MenuBarItem: View {
     let shortcut: String
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(label).foregroundStyle(.white)
+                Text(label).foregroundStyle(.primary)
                 Spacer()
                 Text(shortcut).foregroundStyle(.secondary).font(.caption)
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
         }
         .buttonStyle(.plain)
-        .background(hovering ? Color.accentColor : Color.clear)
+        .background(hovering ? Color.accentColor.opacity(colorScheme == .dark ? 0.3 : 0.15) : Color.clear)
         .onHover { hovering = $0 }
     }
 }

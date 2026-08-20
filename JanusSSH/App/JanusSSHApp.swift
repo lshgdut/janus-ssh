@@ -26,9 +26,12 @@ struct JanusSSHApp: App {
             }
         }
 
-        MenuBarExtra("Janus SSH", systemImage: "antenna.radiowaves.left.and.right") {
+        MenuBarExtra {
             MenuBarView()
                 .environment(container)
+        } label: {
+            // Template NSImage — macOS 自动反色适配 light/dark menu bar
+            Image(nsImage: makeMenuBarIcon())
         }
         .menuBarExtraStyle(.window)
 
@@ -42,4 +45,17 @@ struct JanusSSHApp: App {
 
 extension Notification.Name {
     static let newProfileRequested = Notification.Name("janus.newProfileRequested")
+}
+
+extension JanusSSHApp {
+    /// 构造 menu bar 图标 — SF Symbol 转成 template NSImage
+    /// macOS 看到 .alwaysTemplate 会自动反色适配 light/dark menu bar
+    fileprivate func makeMenuBarIcon() -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        let image = NSImage(systemSymbolName: "antenna.radiowaves.left.and.right",
+                            accessibilityDescription: "Janus SSH")?
+            .withSymbolConfiguration(config) ?? NSImage()
+        image.isTemplate = true
+        return image
+    }
 }
