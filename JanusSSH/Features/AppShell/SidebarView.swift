@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(AppContainer.self) private var container
-    @State private var selection: SidebarItem? = .profiles
+    @Binding var selection: SidebarItem?
 
     var body: some View {
         List(selection: $selection) {
