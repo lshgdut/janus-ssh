@@ -156,34 +156,54 @@ private struct ForwardRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            TextField("127.0.0.1", text: $forward.localHost)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-            TextField("15432", value: $forward.localPort, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 80)
-                .font(.system(.body, design: .monospaced))
-            Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-            TextField("db.internal", text: $forward.remoteHost)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-            TextField("5432", value: $forward.remotePort, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 80)
-                .font(.system(.body, design: .monospaced))
+            // Local: host : port →→→ Remote: host : port (label)
+            FieldCell(title: "Local", host: $forward.localHost, port: $forward.localPort)
+            Image(systemName: "arrow.right")
+                .foregroundStyle(.tertiary)
+                .font(.body)
+            FieldCell(title: "Remote", host: $forward.remoteHost, port: $forward.remotePort)
+
             TextField("label", text: Binding(
                 get: { forward.label ?? "" },
                 set: { forward.label = $0.isEmpty ? nil : $0 }
             ))
             .textFieldStyle(.roundedBorder)
             .frame(width: 100)
+
             Button(role: .destructive) {
                 allForwards.removeAll { $0.id == forward.id }
             } label: {
                 Image(systemName: "minus.circle")
+                    .foregroundStyle(.red)
             }
             .buttonStyle(.borderless)
             .disabled(allForwards.count <= 1)
+            .help("删除此 Forward")
+        }
+    }
+}
+
+/// Local/Remote 单端:host + port 并排小输入框
+private struct FieldCell: View {
+    let title: String
+    @Binding var host: String
+    @Binding var port: UInt16
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title.uppercased())
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: 50, alignment: .leading)
+            TextField("host", text: $host)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(minWidth: 100)
+            TextField("port", value: $port, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.leading)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: 80)
         }
     }
 }
