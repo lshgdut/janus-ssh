@@ -404,8 +404,7 @@ private struct ProfileCard: View {
             Button("Retry") {
                 Task { try? await container.tunnelManager.start(profileID: profile.id) }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
+            .buttonStyle(PrimaryButtonStyle())
         case nil, .stopped:
             Button("Start") {
                 Task { try? await container.tunnelManager.start(profileID: profile.id) }
