@@ -69,6 +69,9 @@ public struct SSHConfigParser {
     ) -> [Entry] {
         var entries: [Entry] = []
         var current: Entry?
+        // 多 alias 共享 options:current 是主条目,pendingAliases 是额外别名
+        // 当新 Host 出现时,把 current + pending 一并 flush 到 entries
+        var pendingAliases: [String] = []
 
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
 
@@ -87,12 +90,27 @@ public struct SSHConfigParser {
             // rawValue 已经精确匹配,无需二次处理
 
             if k == .host {
-                let alias = value.split(separator: " ", omittingEmptySubsequences: true)
-                    .first.map(String.init) ?? value
-                // 通配 Host 跳过
-                if alias.contains("*") || alias.contains("?") || alias.contains("[") { continue }
-                if let c = current { entries.append(c) }
-                current = Entry(alias: alias, options: [:])
+                // 一个 Host 行可包含多个 alias(空格分隔),每个 alias 展开成独立 Entry
+                // 这样 "Host stg-api.gosea.co cb.gosea.co" 会显示为两条
+                let aliases = value.split(separator: " ", omittingEmptySubsequences: true)
+                    .map(String.init)
+                    .filter { !$0.isEmpty }
+                // 通配 Host 跳过(* ? [)
+                let nonWildcards = aliases.filter {
+                    !$0.contains("*") && !$0.contains("?") && !$0.contains("[")
+                }
+                guard !nonWildcards.isEmpty else { continue }
+                // flush 之前的 current + pending aliases(共享同一份 options)
+                if let c = current {
+                    entries.append(c)
+                    for alias in pendingAliases {
+                        entries.append(Entry(alias: alias, options: c.options))
+                    }
+                }
+                current = Entry(alias: nonWildcards[0], options: [:])
+                pendingAliases = nonWildcards.count > 1
+                    ? Array(nonWildcards.dropFirst())
+                    : []
                 continue
             }
 
@@ -136,7 +154,12 @@ public struct SSHConfigParser {
                 current?.options[k] = value
             }
         }
-        if let c = current { entries.append(c) }
+        if let c = current {
+            entries.append(c)
+            for alias in pendingAliases {
+                entries.append(Entry(alias: alias, options: c.options))
+            }
+        }
         return entries
     }
 

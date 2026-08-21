@@ -49,7 +49,9 @@ public final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
             SSHHost(
                 alias: entry.alias,
                 user: entry.options[.user],
-                hostname: entry.options[.hostname],
+                // HostName 未指定时,回退到 alias 作为连接目标
+                // (例: Host dev.gosea.co → hostname = "dev.gosea.co")
+                hostname: entry.options[.hostname] ?? entry.alias,
                 port: entry.options[.port].flatMap { Int($0) },
                 identityFiles: [expand(entry.options[.identityFile] ?? "", from: path)],
                 proxyJump: entry.options[.proxyJump],

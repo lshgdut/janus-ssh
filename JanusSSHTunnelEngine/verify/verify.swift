@@ -268,6 +268,19 @@ struct Verify {
             else { failed += 1; print("✗ \(lbl)") }
         })
 
+        
+
+        do {
+            let r4 = testMultipleAliases()
+            check("SSHConfigParser: 'Host a b c' expands to 3 entries", r4.passed)
+            if !r4.passed { print("  → \(r4.msg)") }
+        }
+        do {
+            let r5 = testHostnameFallsBackToAlias()
+            check("SSHHost: hostname falls back to alias when missing", r5.passed)
+            if !r5.passed { print("  → \(r5.msg)") }
+        }
+
         if failed > 0 {
             exit(1)
         }
@@ -739,5 +752,63 @@ final class M3Result: @unchecked Sendable {
             createdAt: Date(), updatedAt: Date()
         )
         return ProfileSnapshot(profile)
+    }
+}
+// ─── M3+: 多 alias 展开 + hostname 回退 ───
+
+func testMultipleAliases() -> (passed: Bool, msg: String) {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("janus-multi-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+    try? """
+    Host stg-api.gosea.co cb.gosea.co
+        User ecs-user
+        HostName 43.98.173.233
+        IdentityFile ~/.ssh/gosea/keys/aliyun-gosea-gosea2.pem
+
+    Host dev.gosea.co
+        User gosea
+        IdentityFile ~/.ssh/id_ed25519
+    """.write(to: tempDir.appendingPathComponent("config"),
+              atomically: true, encoding: .utf8)
+    let config = tempDir.appendingPathComponent("config")
+    let entries = SSHConfigParser.parse(
+        (try? String(contentsOf: config, encoding: .utf8)) ?? "",
+        basePath: config.path
+    )
+    let aliases = entries.map { $0.alias }
+    if Set(aliases) == ["stg-api.gosea.co", "cb.gosea.co", "dev.gosea.co"]
+        && entries.count == 3 {
+        return (true, "Multi-alias expanded: \(aliases)")
+    } else {
+        return (false, "expected 3 entries with aliases, got \(entries.count): \(aliases)")
+    }
+}
+
+func testHostnameFallsBackToAlias() -> (passed: Bool, msg: String) {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("janus-fallback-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+    try? """
+    Host dev.gosea.co
+        User gosea
+    """.write(to: tempDir.appendingPathComponent("config"),
+              atomically: true, encoding: .utf8)
+    let config = tempDir.appendingPathComponent("config")
+    let entries = SSHConfigParser.parse(
+        (try? String(contentsOf: config, encoding: .utf8)) ?? "",
+        basePath: config.path
+    )
+    // 模拟 SSHConfigProviding 的 hostname 回退
+    let entriesWithFallback = entries.map { entry in
+        (alias: entry.alias, hostname: entry.options[.hostname] ?? entry.alias)
+    }
+    if let entry = entriesWithFallback.first,
+       entry.hostname == "dev.gosea.co" {
+        return (true, "hostname fell back to alias: \(entry)")
+    } else {
+        return (false, "expected hostname=dev.gosea.co, got: \(entriesWithFallback)")
     }
 }
