@@ -395,9 +395,11 @@ private struct ProfileCard: View {
             Button("Stop") {
                 Task { try? await container.tunnelManager.stop(profileID: profile.id) }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(SecondaryButtonStyle())
         case .stopping:
-            Button("Stop") {}.buttonStyle(.bordered).disabled(true)
+            Button("Stop") {}
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(true)
         case .error:
             Button("Retry") {
                 Task { try? await container.tunnelManager.start(profileID: profile.id) }

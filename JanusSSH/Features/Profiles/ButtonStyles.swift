@@ -59,3 +59,48 @@ private struct PrimaryBody: View {
                        value: isPressed)
     }
 }
+
+// MARK: - Secondary (Stop) — 白底深字 + 边框
+
+struct SecondaryButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SecondaryBody(configuration: configuration)
+    }
+}
+
+private struct SecondaryBody: View {
+    let configuration: PrimitiveButtonStyle.Configuration
+    @State private var isHovered = false
+    @GestureState private var isPressing = false
+
+    var body: some View {
+        let isPressed = isPressing
+        let bg: Color = {
+            if isPressed { DesignTokens.surfaceHover.opacity(0.85) }
+            else if isHovered { DesignTokens.surfaceHover }
+            else { DesignTokens.bg }
+        }()
+
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(DesignTokens.fg)
+            .frame(height: DesignTokens.buttonHeight)
+            .padding(.horizontal, DesignTokens.buttonHPadding)
+            .background(bg)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.buttonRadius)
+                    .strokeBorder(DesignTokens.borderSoft, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.buttonRadius))
+            .contentShape(Rectangle())
+            .onHover { isHovered = $0 }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($isPressing) { _, state, _ in state = true }
+            )
+            .animation(.easeInOut(duration: DesignTokens.buttonTransition),
+                       value: isHovered)
+            .animation(.easeInOut(duration: DesignTokens.buttonTransition),
+                       value: isPressed)
+    }
+}
