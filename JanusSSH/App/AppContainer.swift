@@ -131,6 +131,21 @@ final class AppContainer {
         try? await profileRepo.save(profiles)
     }
 
+    // MARK: - Editor window
+
+    /// 当前正在编辑的 profile(独立 window 用)
+    private(set) var editingProfile: Profile?
+
+    /// 从 ProfileListView / EmptyState / 新建菜单调用
+    /// 设置后会通过 @Observable 通知 ProfileEditorWindow scene 打开
+    func requestEdit(profile: Profile) {
+        editingProfile = profile
+    }
+
+    func closeEditor() {
+        editingProfile = nil
+    }
+
     func deleteProfile(_ id: UUID) async {
         profiles.removeAll { $0.id == id }
         tunnelManager.unregisterProfile(id: id)

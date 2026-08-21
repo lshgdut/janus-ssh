@@ -502,3 +502,32 @@ private struct CommandPreview: View {
         }
     }
 }
+// MARK: - ProfileEditorWindow
+//
+// 独立 window 场景 — 监听 AppContainer.editingProfile
+// 非 nil 时显示编辑器,nil 时显示空白(等用户操作)
+// 避免 .sheet 在 macOS 上的固定尺寸截断长内容
+
+import AppKit
+
+struct ProfileEditorWindow: View {
+    @Environment(AppContainer.self) private var container
+
+    var body: some View {
+        Group {
+            if let profile = container.editingProfile {
+                ProfileEditorView(initial: profile)
+                    .onDisappear { container.closeEditor() }
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "rectangle.stack")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.tertiary)
+                    Text("No profile selected")
+                        .font(.title3).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+}

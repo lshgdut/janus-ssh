@@ -26,6 +26,15 @@ struct JanusSSHApp: App {
             }
         }
 
+        // 独立 Profile Editor 窗口 — 避开 .sheet 的固定尺寸截断
+        // 监听 container.editingProfile,非 nil 时显示
+        WindowGroup("Edit Profile", id: "profile-editor") {
+            ProfileEditorWindow()
+                .environment(container)
+        }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 1000, height: 720)
+
         MenuBarExtra {
             MenuBarView()
                 .environment(container)

@@ -4,7 +4,6 @@ import JanusSSHTunnelEngine
 struct ProfileListView: View {
     @Environment(AppContainer.self) private var container
     @State private var searchText: String = ""
-    @State private var editingProfile: Profile?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,7 +17,7 @@ struct ProfileListView: View {
                             ProfileCard(profile: profile,
                                         tunnel: container.tunnelManager.tunnel(for: profile.id))
                                 .onTapGesture {
-                                    editingProfile = profile
+                                    openEditor(for: profile)
                                 }
                         }
                     }
@@ -28,18 +27,34 @@ struct ProfileListView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .searchable(text: $searchText, placement: .toolbar)
-        .sheet(item: $editingProfile) { profile in
-            ProfileEditorView(initial: profile)
+    }
+
+    /// 不用 .sheet — 改用 openWindow 弹出独立窗口
+    /// 原因:macOS sheet 尺寸固定,长内容会被截断;独立窗口可自由 resize
+    private func openEditor(for profile: Profile?) {
+        let draft: Profile
+        if let p = profile {
+            draft = p
+        } else {
+            draft = Profile(
+                name: "",
+                sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
+                forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                       remoteHost: "", remotePort: 0, label: nil)],
+                behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+                createdAt: Date(),
+                updatedAt: Date()
+            )
         }
+        container.requestEdit(profile: draft)
     }
 
     private var filteredProfiles: [Profile] {
         guard !searchText.isEmpty else { return container.profiles }
         let q = searchText.lowercased()
-        return container.profiles.filter {
-            $0.name.lowercased().contains(q) ||
-            $0.sshHostAlias.lowercased().contains(q) ||
-            $0.forwards.contains { String($0.localPort).contains(q) }
+        return container.profiles.filter { p in
+            p.name.lowercased().contains(q) ||
+            p.sshHostAlias.lowercased().contains(q)
         }
     }
 }
@@ -48,29 +63,25 @@ struct ProfileListView: View {
 
 private struct Toolbar: View {
     @Environment(AppContainer.self) private var container
-    @State private var newDraft: Profile?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Profiles").font(.title2).fontWeight(.medium)
-                let running = container.tunnelManager.tunnels.values.filter {
-                    $0.state == .running || $0.state == .starting
-                }.count
-                Text("\(container.profiles.count) 个 Profile · \(running) 个运行中")
+                Text("Profiles").font(.title2).fontWeight(.semibold)
+                Text("\(container.profiles.count) profiles")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Stop All") { Task { await container.tunnelManager.stopAll() } }
-                .buttonStyle(.bordered)
-            Button("Start All") { Task { try? await container.tunnelManager.startAll() } }
-                .buttonStyle(.bordered)
             Button {
-                newDraft = Profile(name: "", sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
-                                   forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                                          remoteHost: "", remotePort: 0, label: nil)],
-                                   behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
-                                   createdAt: Date(), updatedAt: Date())
+                container.requestEdit(profile: Profile(
+                    name: "",
+                    sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
+                    forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                           remoteHost: "", remotePort: 0, label: nil)],
+                    behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+                    createdAt: Date(),
+                    updatedAt: Date()
+                ))
             } label: {
                 Label("New Profile", systemImage: "plus")
             }
@@ -79,7 +90,6 @@ private struct Toolbar: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.background)
-        .sheet(item: $newDraft) { p in ProfileEditorView(initial: p) }
     }
 }
 
@@ -87,151 +97,82 @@ private struct Toolbar: View {
 
 private struct EmptyState: View {
     @Environment(AppContainer.self) private var container
+
     var body: some View {
-        EmptyStateView(
-            systemImage: "tray",
-            title: "No profiles yet",
-            message: "Create your first SSH tunnel profile to get started."
-        )
+        VStack(spacing: 12) {
+            Image(systemName: "rectangle.stack.badge.plus")
+                .font(.system(size: 48))
+                .foregroundStyle(.tertiary)
+            Text("No Profiles yet")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            Text("Create your first SSH tunnel profile to get started")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Button {
+                container.requestEdit(profile: Profile(
+                    name: "",
+                    sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
+                    forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                           remoteHost: "", remotePort: 0, label: nil)],
+                    behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+                    createdAt: Date(),
+                    updatedAt: Date()
+                ))
+            } label: {
+                Label("New Profile", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
 // MARK: - Profile Card
-
-struct ProfileCard: View {
+private struct ProfileCard: View {
     let profile: Profile
     let tunnel: Tunnel?
 
-    @Environment(AppContainer.self) private var container
-
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(stateColor)
+                .frame(width: 10, height: 10)
+                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(profile.name)
+                    .font(.system(.title3, design: .default).weight(.semibold))
                 HStack(spacing: 8) {
-                    Text(profile.name).font(.title3).fontWeight(.medium)
-                    StatusBadge(state: tunnel?.state ?? .stopped)
-                }
-                HStack(spacing: 12) {
                     Text(profile.sshHostAlias)
                         .font(.system(.body, design: .monospaced))
-                    Divider().frame(height: 12)
-                    Text("\(profile.forwards.count) port forwards")
-                }
-                .font(.caption).foregroundStyle(.secondary)
-
-                ForwardsPreview(forwards: profile.forwards)
-                TagsRow(profile: profile)
-            }
-            Spacer()
-            CardActions(profile: profile, tunnel: tunnel)
-        }
-        .padding(20)
-        .background(.background)
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(stateAccent)
-                .frame(width: 3)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
-    }
-
-    private var stateAccent: Color {
-        switch tunnel?.state {
-        case .running: return .accentColor
-        case .error: return .red
-        default: return .clear
-        }
-    }
-}
-
-private struct CardActions: View {
-    let profile: Profile
-    let tunnel: Tunnel?
-    @Environment(AppContainer.self) private var container
-
-    var body: some View {
-        VStack(spacing: 8) {
-            switch tunnel?.state {
-            case .running:
-                Button("Stop") {
-                    Task { try? await container.tunnelManager.stop(profileID: profile.id) }
-                }
-                .buttonStyle(.bordered)
-            case .starting, .starting:
-                ProgressView().controlSize(.small)
-            default:
-                Button("Start") {
-                    Task { try? await container.tunnelManager.start(profileID: profile.id) }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            Button {
-                // Edit
-            } label: {
-                Image(systemName: "ellipsis")
-            }
-            .buttonStyle(.borderless)
-        }
-        .frame(minWidth: 80)
-    }
-}
-
-private struct ForwardsPreview: View {
-    let forwards: [PortForward]
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(forwards.prefix(3)) { f in
-                HStack(spacing: 8) {
-                    Text(f.localEndpoint)
-                        .font(.system(.caption, design: .monospaced))
-                    Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-                    Text("\(f.remoteHost):\(f.remotePort)")
-                        .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    if let label = f.label {
-                        Text(label)
-                            .font(.system(.caption2, design: .monospaced))
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
-                            .foregroundStyle(.secondary)
+                    if let t = tunnel, t.pid != nil {
+                        Text("PID \(t.pid ?? 0)")
+                            .font(.caption).foregroundStyle(.tertiary)
                     }
                 }
+                Text("\(profile.forwards.count) forwards")
+                    .font(.caption).foregroundStyle(.tertiary)
             }
-            if forwards.count > 3 {
-                Text("+ \(forwards.count - 3) more")
-                    .font(.caption2).foregroundStyle(.tertiary)
-            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .foregroundStyle(.tertiary)
+                .font(.caption)
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.separator, lineWidth: 0.5)
+        )
     }
-}
 
-private struct TagsRow: View {
-    let profile: Profile
-    var body: some View {
-        HStack(spacing: 6) {
-            if profile.behavior.autoReconnect {
-                tag("auto-reconnect")
-            }
-            if profile.behavior.autoStart {
-                tag("auto-start")
-            }
-            if !profile.behavior.enabled {
-                tag("disabled", color: .red)
-            }
+    private var stateColor: Color {
+        guard let t = tunnel else { return .gray.opacity(0.4) }
+        switch t.state {
+        case .running, .starting: return .green
+        case .error: return .red
+        case .stopping: return .orange
+        case .stopped, .reconnecting: return .gray
         }
     }
-    private func tag(_ text: String, color: Color = .secondary) -> some View {
-        Text(text)
-            .font(.system(.caption2, design: .monospaced))
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
-            .foregroundStyle(color)
-    }
 }
-
-

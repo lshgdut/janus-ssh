@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0FE61473E8CEE2B2BEF90785 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */; };
+		97E59E24016325A97D789B1F /* ProfileEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A6C5D4C98BC5AAA80CA9AA /* ProfileEditorWindow.swift */; };
 		15A6AFAEA1D907442C3DF4B7 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A30CFA56331C20569CC5C4 /* AppContainer.swift */; };
 		15DC2038A18488D695F92105 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */; };
 		1B4DE2EDC706E9A4CA3EF55C /* JanusSSH.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = 76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */; };
@@ -38,6 +39,7 @@
 		1397F81873971FF1B1FB6A06 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelLogView.swift; sourceTree = "<group>"; };
 		2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
+		E1A6C5D4C98BC5AAA80CA9AA /* ProfileEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorWindow.swift; sourceTree = "<group>"; };
 		319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRunningView.swift; sourceTree = "<group>"; };
 		60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileListView.swift; sourceTree = "<group>"; };
 		76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JanusSSH.entitlements; sourceTree = "<group>"; };
