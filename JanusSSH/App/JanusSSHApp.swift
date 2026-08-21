@@ -33,7 +33,9 @@ struct JanusSSHApp: App {
             // Template NSImage — macOS 自动反色适配 light/dark menu bar
             Image(nsImage: makeMenuBarIcon())
         }
-        .menuBarExtraStyle(.window)
+        // .window 模式在 macOS 14+ 触发 NSXPCDecoder validateAllowedClass 警告
+        // .menu 模式是原生 NSMenu,无 XPC 通信,无警告
+        .menuBarExtraStyle(.menu)
 
         Settings {
             SettingsView()
