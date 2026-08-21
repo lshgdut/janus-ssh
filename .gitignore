@@ -9,6 +9,9 @@
 # Claude Code local settings (per-user, never committed)
 .claude/settings.local.json
 
+# Subagent-driven development scratch (per-session, never committed)
+.superpowers/
+
 # Editors
 .idea/
 .vscode/
