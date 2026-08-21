@@ -23,6 +23,7 @@ public final class TunnelManager {
     private let validator: ProfileValidator
     private let logStore: TunnelLogStore
     private let reconnectController: ReconnectController
+    private let sshConfigProvider: SSHConfigProviding?
 
     /// profile 注册表 — 启动前要知道有哪些 profile
     private var profiles: [UUID: Profile] = [:]
@@ -35,13 +36,15 @@ public final class TunnelManager {
         portChecker: PortChecking,
         validator: ProfileValidator,
         logStore: TunnelLogStore,
-        reconnectController: ReconnectController = ReconnectController()
+        reconnectController: ReconnectController = ReconnectController(),
+        sshConfigProvider: SSHConfigProviding? = nil
     ) {
         self.processManager = processManager
         self.portChecker = portChecker
         self.validator = validator
         self.logStore = logStore
         self.reconnectController = reconnectController
+        self.sshConfigProvider = sshConfigProvider
     }
 
     // MARK: - Profile registry
@@ -85,15 +88,20 @@ public final class TunnelManager {
             return
         }
 
-        // 校验(已知 hosts 检查需要 SSHConfigProviding,这里只跑字段校验)
-        let issues = validator.validate(profile, knownHosts: [])
+        // 校验 — 用 sshConfigProvider 拿真实 knownHosts
+        // 之前传 knownHosts: [] 会导致 sshHostAlias 检查永远失败
+        let knownHosts = await currentKnownHosts()
+        let issues = validator.validate(profile, knownHosts: knownHosts)
         let errors = issues.filter { $0.severity == .error }
         guard errors.isEmpty else {
             let firstError = errors.first?.message ?? "validation failed"
             await logStore.append(profileID: profileID, kind: .app,
                                   message: "Validation failed: \(firstError)",
                                   level: .error)
-            updateTunnel(id: profileID) { $0.state = .error; $0.lastError = .profileNotFound(profileID) }
+            updateTunnel(id: profileID) { t in
+                t.state = .error
+                t.lastError = .sshConfigResolutionFailed(host: profile.sshHostAlias)
+            }
             return
         }
 
@@ -156,6 +164,15 @@ public final class TunnelManager {
 
             // 启动事件观察任务,转发到 logStore
             observationTasks[profileID] = startObserving(profileID: profileID, handle: handle)
+        } catch let spawnError as SSHProcessError {
+            // SSH 进程 spawn 失败 — 把描述写到 lastError / log
+            updateTunnel(id: profileID) { t in
+                t.state = .error
+                t.lastError = .sshSpawnFailed(code: -1)
+            }
+            await logStore.append(profileID: profileID, kind: .app,
+                                  message: "Spawn failed: \(spawnError.errorDescription ?? "unknown")",
+                                  level: .error)
         } catch {
             updateTunnel(id: profileID) { t in
                 t.state = .error
@@ -207,6 +224,15 @@ public final class TunnelManager {
     }
 
     // MARK: - Private
+
+    /// 拉取当前 ~/.ssh/config 中的 host alias 集合。
+    /// 没有 provider 时返回空集 — 此时编辑器校验已保证 alias 合法,
+    /// 运行时不做 host 存在性检查(避免硬依赖)。
+    private func currentKnownHosts() async -> Set<String> {
+        guard let provider = sshConfigProvider else { return [] }
+        let hosts = (try? await provider.discoverHosts()) ?? []
+        return Set(hosts.map { $0.alias })
+    }
 
     private func updateTunnel(id: UUID, _ mutation: (inout Tunnel) -> Void) {
         guard var t = tunnels[id] else { return }

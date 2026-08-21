@@ -26,7 +26,8 @@ public actor SSHProcessManager: SSHProcessManaging {
         let proc = try SSHProcess(
             executable: command.executable,
             arguments: command.arguments,
-            environment: command.environment
+            environment: command.environment,
+            workingDirectory: command.workingDirectory
         )
         try await proc.start()
         processes[profileID] = proc

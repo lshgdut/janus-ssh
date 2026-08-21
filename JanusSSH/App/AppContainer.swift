@@ -60,7 +60,8 @@ final class AppContainer {
             processManager: processManager,
             portChecker: portChecker,
             validator: validator,
-            logStore: logStore
+            logStore: logStore,
+            sshConfigProvider: sshHostManager.provider
         )
         let reconnectController = ReconnectController()
         let settingsManager = SettingsManager(repository: settingsRepo)

@@ -5,7 +5,6 @@ struct RootView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.openWindow) private var openWindow
     @State private var selection: SidebarItem? = .profiles
-    @State private var draftProfile: Profile?
 
     var body: some View {
         NavigationSplitView {
@@ -23,38 +22,30 @@ struct RootView: View {
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .newProfileRequested)) { _ in
-                openEditor(for: nil)
+                openEditor()
             }
         }
     }
 
-    /// 用 openWindow 而不是 .sheet — 独立窗口可以自由调整大小,不会被 sheet 的固定尺寸截断
-    private func openEditor(for profile: Profile?) {
-        let draft: Profile
-        if let p = profile {
-            draft = p
-        } else {
-            draft = Profile(
-                name: "",
-                sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
-                forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                       remoteHost: "", remotePort: 0, label: nil)],
-                behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
-                createdAt: Date(),
-                updatedAt: Date()
-            )
-        }
-        // 用 NotificationCenter 传递,跨窗口工作
-        NotificationCenter.default.post(
-            name: .openProfileEditor, object: nil, userInfo: ["profile": draft]
+    /// Cmd+N 走的入口:构造空 profile + openWindow
+    /// 关键:SwiftUI WindowGroup 不会自动 mount,必须调用 openWindow(id:) 才会创建窗口实例
+    /// container.requestEdit() 只是把 profile 写到 Observable state,
+    /// ProfileEditorWindow 的 body 监听该 state 并显示对应编辑器
+    private func openEditor() {
+        let draft = Profile(
+            name: "",
+            sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
+            forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                   remoteHost: "", remotePort: 0, label: nil)],
+            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+            createdAt: Date(),
+            updatedAt: Date()
         )
+        container.requestEdit(profile: draft)
+        openWindow(id: "profile-editor")
     }
 }
 
 enum SidebarItem: Hashable {
     case profiles, sshHosts, settings
-}
-
-extension Notification.Name {
-    static let openProfileEditor = Notification.Name("janus.openProfileEditor")
 }

@@ -18,6 +18,8 @@ struct JanusSSHApp: App {
         }
         .windowResizability(.contentMinSize)
         .commands {
+            // Cmd+N — 弹出空 profile 的编辑器
+            // 注意:命令菜单不能拿 openWindow,所以走 NotificationCenter → RootView → openWindow
             CommandGroup(replacing: .newItem) {
                 Button("New Profile") {
                     NotificationCenter.default.post(name: .newProfileRequested, object: nil)

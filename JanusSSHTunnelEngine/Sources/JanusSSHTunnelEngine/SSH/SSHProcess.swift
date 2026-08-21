@@ -46,6 +46,7 @@ public actor SSHProcess: SSHProcessHandle {
     private let executable: URL
     private let arguments: [String]
     private let environment: [String: String]?
+    private let workingDirectory: String?
 
     private var process: Process?
     private var stdoutPipe: Pipe?
@@ -54,13 +55,19 @@ public actor SSHProcess: SSHProcessHandle {
     private var stderrBuffer = Data()
     private var continuations: [UUID: AsyncStream<Event>.Continuation] = [:]
 
-    public init(executable: URL, arguments: [String], environment: [String: String]? = nil) throws {
+    public init(
+        executable: URL,
+        arguments: [String],
+        environment: [String: String]? = nil,
+        workingDirectory: String? = nil
+    ) throws {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw SSHProcessError.binaryNotFound(executable)
         }
         self.executable = executable
         self.arguments = arguments
         self.environment = environment
+        self.workingDirectory = workingDirectory
     }
 
     /// 启动进程,捕获 stdout / stderr,设置 terminationHandler
@@ -75,6 +82,12 @@ public actor SSHProcess: SSHProcessHandle {
         if let env = environment {
             p.environment = env
         }
+        if let cwd = workingDirectory {
+            p.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        }
+        // 显式设置 stdin 为 /dev/null
+        // GUI app 启动的子进程没有 stdin tty,SSH 可能 block 或 exit
+        p.standardInput = FileHandle.nullDevice
 
         let outPipe = Pipe()
         let errPipe = Pipe()

@@ -3,11 +3,12 @@ import JanusSSHTunnelEngine
 
 struct ProfileListView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.openWindow) private var openWindow
     @State private var searchText: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            Toolbar()
+            Toolbar(searchText: $searchText)
             if container.profiles.isEmpty {
                 EmptyState()
             } else {
@@ -16,9 +17,6 @@ struct ProfileListView: View {
                         ForEach(filteredProfiles) { profile in
                             ProfileCard(profile: profile,
                                         tunnel: container.tunnelManager.tunnel(for: profile.id))
-                                .onTapGesture {
-                                    openEditor(for: profile)
-                                }
                         }
                     }
                     .padding(20)
@@ -26,35 +24,28 @@ struct ProfileListView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .searchable(text: $searchText, placement: .toolbar)
     }
 
-    /// 不用 .sheet — 改用 openWindow 弹出独立窗口
-    /// 原因:macOS sheet 尺寸固定,长内容会被截断;独立窗口可自由 resize
-    private func openEditor(for profile: Profile?) {
-        let draft: Profile
-        if let p = profile {
-            draft = p
-        } else {
-            draft = Profile(
-                name: "",
-                sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
-                forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                       remoteHost: "", remotePort: 0, label: nil)],
-                behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
-                createdAt: Date(),
-                updatedAt: Date()
-            )
-        }
-        container.requestEdit(profile: draft)
+    /// 用 WindowGroup + openWindow 弹出独立编辑器
+    /// 不用 .sheet — sheet 尺寸固定,长内容会被截断;独立窗口可自由 resize
+    /// SwiftUI WindowGroup 不会自动 mount,必须 openWindow(id:) 才会创建窗口实例
+    private func openEditor(for profile: Profile) {
+        container.requestEdit(profile: profile)
+        openWindow(id: "profile-editor")
     }
 
     private var filteredProfiles: [Profile] {
-        guard !searchText.isEmpty else { return container.profiles }
-        let q = searchText.lowercased()
+        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return container.profiles }
         return container.profiles.filter { p in
-            p.name.lowercased().contains(q) ||
-            p.sshHostAlias.lowercased().contains(q)
+            if p.name.lowercased().contains(q) { return true }
+            if p.sshHostAlias.lowercased().contains(q) { return true }
+            // 端口号搜索 — 任意一条 forward 的本地或远程端口匹配即可
+            for fwd in p.forwards {
+                if String(fwd.localPort).contains(q) { return true }
+                if String(fwd.remotePort).contains(q) { return true }
+            }
+            return false
         }
     }
 }
@@ -63,33 +54,138 @@ struct ProfileListView: View {
 
 private struct Toolbar: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.openWindow) private var openWindow
+    @Binding var searchText: String
+
+    private var runningCount: Int {
+        container.tunnelManager.tunnels.values.filter {
+            $0.state == .running || $0.state == .starting
+        }.count
+    }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Profiles").font(.title2).fontWeight(.semibold)
-                Text("\(container.profiles.count) profiles")
-                    .font(.caption).foregroundStyle(.secondary)
+        VStack(spacing: 14) {
+            HStack(alignment: .center, spacing: 16) {
+                // 左:标题 + 计数 pill
+                HStack(spacing: 12) {
+                    Text("Profiles")
+                        .font(.system(.title, design: .default).weight(.semibold))
+                    CountPill(total: container.profiles.count, running: runningCount)
+                }
+
+                // 中:搜索框(自定义,匹配设计)
+                SearchField(text: $searchText,
+                            placeholder: "搜索 Profile、SSH Host 或 Port")
+                    .frame(maxWidth: 360)
+
+                Spacer(minLength: 0)
+
+                // 右:动作按钮
+                HStack(spacing: 8) {
+                    Button("Stop All") {
+                        Task { await container.tunnelManager.stopAll() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(runningCount == 0)
+
+                    Button("Start All") {
+                        Task { try? await container.tunnelManager.startAll() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(container.profiles.isEmpty || runningCount > 0)
+
+                    Button {
+                        openEditor()
+                    } label: {
+                        Label("New Profile", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
-            Spacer()
-            Button {
-                container.requestEdit(profile: Profile(
-                    name: "",
-                    sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
-                    forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                           remoteHost: "", remotePort: 0, label: nil)],
-                    behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
-                    createdAt: Date(),
-                    updatedAt: Date()
-                ))
-            } label: {
-                Label("New Profile", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
         .background(.background)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
+    private func openEditor() {
+        let draft = Profile(
+            name: "",
+            sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
+            forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                   remoteHost: "", remotePort: 0, label: nil)],
+            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        container.requestEdit(profile: draft)
+        openWindow(id: "profile-editor")
+    }
+}
+
+// MARK: - Count Pill
+
+private struct CountPill: View {
+    let total: Int
+    let running: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(running > 0 ? Color.blue : Color.gray)
+                .frame(width: 6, height: 6)
+            Text("\(total) 个 Profile · \(running) 个运行中")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(
+            Capsule().fill(Color.secondary.opacity(0.1))
+        )
+    }
+}
+
+// MARK: - Search Field
+
+private struct SearchField: View {
+    @Binding var text: String
+    let placeholder: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.body)
+                .focused($focused)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                        .font(.callout)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(.separator, lineWidth: 0.5)
+        )
     }
 }
 
@@ -97,6 +193,7 @@ private struct Toolbar: View {
 
 private struct EmptyState: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 12) {
@@ -110,15 +207,7 @@ private struct EmptyState: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Button {
-                container.requestEdit(profile: Profile(
-                    name: "",
-                    sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
-                    forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                           remoteHost: "", remotePort: 0, label: nil)],
-                    behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
-                    createdAt: Date(),
-                    updatedAt: Date()
-                ))
+                openEditor()
             } label: {
                 Label("New Profile", systemImage: "plus")
             }
@@ -126,53 +215,372 @@ private struct EmptyState: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    private func openEditor() {
+        let draft = Profile(
+            name: "",
+            sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
+            forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                   remoteHost: "", remotePort: 0, label: nil)],
+            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        container.requestEdit(profile: draft)
+        openWindow(id: "profile-editor")
+    }
 }
+
 // MARK: - Profile Card
+
 private struct ProfileCard: View {
     let profile: Profile
     let tunnel: Tunnel?
+    @Environment(AppContainer.self) private var container
+    @Environment(\.openWindow) private var openWindow
+    @State private var now: Date = Date()
+    @State private var showDeleteConfirm: Bool = false
+
+    private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(stateColor)
-                .frame(width: 10, height: 10)
-                .padding(.top, 6)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(profile.name)
-                    .font(.system(.title3, design: .default).weight(.semibold))
-                HStack(spacing: 8) {
-                    Text(profile.sshHostAlias)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    if let t = tunnel, t.pid != nil {
-                        Text("PID \(t.pid ?? 0)")
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
+        HStack(alignment: .top, spacing: 0) {
+            // 左侧 3px accent bar — 状态色
+            Rectangle()
+                .fill(accentColor)
+                .frame(width: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.vertical, 1)
+
+            VStack(alignment: .leading, spacing: 10) {
+                // 标题行:profile 名 + 状态 pill
+                HStack(alignment: .firstTextBaseline) {
+                    Text(profile.name)
+                        .font(.system(.title3, design: .default).weight(.semibold))
+                    Spacer()
+                    StatusPill(tunnel: tunnel)
                 }
-                Text("\(profile.forwards.count) forwards")
-                    .font(.caption).foregroundStyle(.tertiary)
+
+                // metadata 行:host · N forwards · uptime
+                metadataRow
+
+                // forwards 列表(灰色背景)
+                if !profile.forwards.isEmpty {
+                    forwardsList
+                }
+
+                // 底部 tags
+                tagsRow
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .foregroundStyle(.tertiary)
-                .font(.caption)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 右侧:主操作 + 显式编辑/删除菜单
+            // 不要整体点击进编辑 — 容易误触;显式菜单更清晰
+            VStack(alignment: .trailing, spacing: 10) {
+                actionButton
+                CardMenu(
+                    onEdit: { openEditor() },
+                    onDelete: { showDeleteConfirm = true }
+                )
+            }
+            .padding(16)
         }
-        .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(.separator, lineWidth: 0.5)
         )
+        .confirmationDialog(
+            "Delete \"\(profile.name)\"?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Profile", role: .destructive) {
+                Task { await container.deleteProfile(profile.id) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will stop the tunnel if running and remove the profile permanently.")
+        }
+        .onReceive(tick) { now = $0 }
     }
 
-    private var stateColor: Color {
-        guard let t = tunnel else { return .gray.opacity(0.4) }
+    private func openEditor() {
+        container.requestEdit(profile: profile)
+        openWindow(id: "profile-editor")
+    }
+
+    // MARK: - metadata row
+
+    private var metadataRow: some View {
+        HStack(spacing: 6) {
+            Text(profile.sshHostAlias)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Separator()
+            Text("\(profile.forwards.count) port forwards")
+                .font(.caption).foregroundStyle(.secondary)
+            Separator()
+            uptimeOrLastStarted
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var uptimeOrLastStarted: some View {
+        if let started = tunnel?.startedAt, isRunning {
+            Text("uptime \(format(duration: now.timeIntervalSince(started)))")
+        } else if let started = tunnel?.startedAt {
+            Text("last started \(format(relative: now.timeIntervalSince(started))) ago")
+        } else {
+            Text("never started")
+        }
+    }
+
+    // MARK: - forwards list
+
+    private var forwardsList: some View {
+        VStack(spacing: 4) {
+            ForEach(Array(profile.forwards.prefix(3).enumerated()), id: \.element.id) { _, fwd in
+                ForwardLine(forward: fwd, isError: isError)
+            }
+            if profile.forwards.count > 3 {
+                HStack {
+                    Spacer()
+                    Text("+\(profile.forwards.count - 3) more")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.gray.opacity(0.06))
+        )
+    }
+
+    // MARK: - tags row
+
+    @ViewBuilder
+    private var tagsRow: some View {
+        HStack(spacing: 6) {
+            if profile.behavior.autoReconnect {
+                Tag(text: "auto-reconnect", color: .secondary)
+            }
+            if profile.behavior.autoStart {
+                Tag(text: "auto-start", color: .secondary)
+            }
+            if isError, case .sshExited(let code, _, _) = tunnel?.lastError {
+                Tag(text: "exit code \(code)", color: .red)
+            }
+            if !profile.behavior.enabled {
+                Tag(text: "disabled", color: .secondary)
+            } else if !profile.behavior.autoReconnect && !profile.behavior.autoStart && !isError {
+                Tag(text: "enabled", color: .secondary)
+            }
+            Spacer()
+        }
+    }
+
+    // MARK: - action button
+
+    @ViewBuilder
+    private var actionButton: some View {
+        switch tunnel?.state {
+        case .running, .starting, .reconnecting:
+            Button("Stop") {
+                Task { try? await container.tunnelManager.stop(profileID: profile.id) }
+            }
+            .buttonStyle(.bordered)
+        case .stopping:
+            Button("Stop") {}.buttonStyle(.bordered).disabled(true)
+        case .error:
+            Button("Retry") {
+                Task { try? await container.tunnelManager.start(profileID: profile.id) }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+        case nil, .stopped:
+            Button("Start") {
+                Task { try? await container.tunnelManager.start(profileID: profile.id) }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    // MARK: - state
+
+    private var accentColor: Color {
+        guard let t = tunnel else { return Color.gray.opacity(0.3) }
         switch t.state {
-        case .running, .starting: return .green
+        case .running, .starting: return .blue
+        case .reconnecting: return .orange
         case .error: return .red
         case .stopping: return .orange
-        case .stopped, .reconnecting: return .gray
+        case .stopped: return Color.gray.opacity(0.3)
         }
+    }
+
+    private var isRunning: Bool {
+        guard let s = tunnel?.state else { return false }
+        return s == .running || s == .starting
+    }
+
+    private var isError: Bool {
+        tunnel?.state == .error
+    }
+
+    private func format(duration: TimeInterval) -> String {
+        let total = Int(duration)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        if h > 0 { return "\(h)h \(m)m" }
+        if m > 0 { return "\(m)m" }
+        return "\(total)s"
+    }
+
+    private func format(relative: TimeInterval) -> String {
+        let total = Int(relative)
+        let d = total / 86400
+        let h = (total % 86400) / 3600
+        if d > 0 { return "\(d) day\(d == 1 ? "" : "s")" }
+        if h > 0 { return "\(h)h" }
+        let m = total / 60
+        if m > 0 { return "\(m)m" }
+        return "\(total)s"
+    }
+}
+
+// MARK: - Forward line
+
+private struct ForwardLine: View {
+    let forward: PortForward
+    let isError: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(forward.localHost):\(forward.localPort) → \(forward.remoteHost):\(forward.remotePort)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(isError ? Color.red : Color.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            if let label = forward.label, !label.isEmpty {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
+// MARK: - Status pill
+
+private struct StatusPill: View {
+    let tunnel: Tunnel?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    private var color: Color {
+        guard let t = tunnel else { return .gray }
+        switch t.state {
+        case .running: return .blue
+        case .starting: return .blue
+        case .reconnecting: return .orange
+        case .error: return .red
+        case .stopping: return .orange
+        case .stopped: return .gray
+        }
+    }
+
+    private var text: String {
+        guard let t = tunnel else { return "Stopped" }
+        switch t.state {
+        case .running:
+            if let pid = t.pid { return "Running · PID \(pid)" }
+            return "Running"
+        case .starting: return "Starting"
+        case .reconnecting: return "Reconnecting"
+        case .error:
+            if case .sshExited(let code, _, _) = t.lastError {
+                return "Error · exit \(code)"
+            }
+            return "Error · Connection refused"
+        case .stopping: return "Stopping"
+        case .stopped: return "Stopped"
+        }
+    }
+}
+
+// MARK: - Tag
+
+private struct Tag: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(
+                Capsule().fill(color.opacity(0.1))
+            )
+    }
+}
+
+// MARK: - Tiny "·" separator
+
+private struct Separator: View {
+    var body: some View {
+        Text("·").font(.caption).foregroundStyle(.tertiary)
+    }
+}
+
+// MARK: - Card menu (•••) — 显式编辑入口
+
+private struct CardMenu: View {
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Menu {
+            Button {
+                onEdit()
+            } label: {
+                Label("Edit Profile…", systemImage: "pencil")
+            }
+            Divider()
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete Profile…", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Edit or delete this profile")
     }
 }
