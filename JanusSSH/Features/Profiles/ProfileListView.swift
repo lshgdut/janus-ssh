@@ -408,7 +408,7 @@ private struct ProfileCard: View {
             Button("Start") {
                 Task { try? await container.tunnelManager.start(profileID: profile.id) }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PrimaryButtonStyle())
         }
     }
 

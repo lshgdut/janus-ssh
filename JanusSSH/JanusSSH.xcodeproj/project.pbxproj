@@ -29,6 +29,7 @@
 		CAFE000000000000000B0003 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0003 /* AppTheme.swift */; };
 		CAFE000000000000000B0010 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0010 /* StatusBadge.swift */; };
 		CAFE000000000000000B0011 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0011 /* EmptyStateView.swift */; };
+		B7E5A0B11A1A1A1A1A1A1A01 /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */; };
 		CAFE000000000000000B0020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0020 /* Assets.xcassets */; };
 		D0F2F68A95B3C045FBED5C5A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9234CF2D35FA4A63E2A23F87 /* RootView.swift */; };
 		D5E806ECBD7133C2A1C3F65E /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9482A684D424C97D09E03615 /* SettingsManager.swift */; };
@@ -54,6 +55,7 @@
 		CAFE000000000000000A0003 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0010 /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0011 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonStyles.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleManager.swift; sourceTree = "<group>"; };
 		E4072D1F7644686574CF00A9 /* SSHHostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostListView.swift; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 		6CC861D38ADA92BE80B10205 /* Profiles */ = {
 			isa = PBXGroup;
 			children = (
+				B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */,
 				2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */,
 				60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */,
 				319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */,
@@ -305,6 +308,7 @@
 				CAFE000000000000000B0003 /* AppTheme.swift in Sources */,
 				CAFE000000000000000B0010 /* StatusBadge.swift in Sources */,
 				CAFE000000000000000B0011 /* EmptyStateView.swift in Sources */,
+				B7E5A0B11A1A1A1A1A1A1A01 /* ButtonStyles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
