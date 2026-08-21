@@ -479,6 +479,34 @@ private struct ForwardLine: View {
     }
 }
 
+// MARK: - Error description
+
+/// 把 TunnelError 智能映射成可读文案
+/// 设计图示例:`Error · exit code 255` / `Error · Connection refused`
+private func errorDescription(for t: Tunnel) -> String {
+    guard let err = t.lastError else { return "Error" }
+    switch err {
+    case .sshExited(let code, _, _):
+        return "Error · exit code \(code)"
+    case .localPortUnavailable(let port):
+        return "Error · port \(port) in use"
+    case .hostUnknown(let host):
+        return "Error · host \(host) not found"
+    case .sshConfigResolutionFailed(let host):
+        return "Error · ssh config invalid for \(host)"
+    case .authenticationFailed(let host):
+        return "Error · auth failed for \(host)"
+    case .networkUnreachable(let host):
+        return "Error · network unreachable \(host)"
+    case .duplicateLocalPort(let port):
+        return "Error · duplicate port \(port)"
+    case .crossProfileLocalPortConflict(let port, _):
+        return "Error · port \(port) conflict"
+    case .profileNotFound, .sshBinaryNotFound, .sshSpawnFailed:
+        return "Error"
+    }
+}
+
 // MARK: - Status pill
 
 private struct StatusPill: View {
@@ -517,10 +545,7 @@ private struct StatusPill: View {
         case .starting: return "Starting"
         case .reconnecting: return "Reconnecting"
         case .error:
-            if case .sshExited(let code, _, _) = t.lastError {
-                return "Error · exit \(code)"
-            }
-            return "Error · Connection refused"
+            return errorDescription(for: t)
         case .stopping: return "Stopping"
         case .stopped: return "Stopped"
         }
