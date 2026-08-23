@@ -12,6 +12,9 @@ final class AppContainer {
     let profileRepo: ProfileRepository
     let settingsRepo: SettingsRepository
 
+    // SSH 子进程 PID 持久化 — 用于 App 重启后 sweep 孤儿进程
+    let pidStore: ManagedPIDStore
+
     // 基础设施
     let sshConfigProvider: SSHConfigProviding
     let portChecker: PortChecking
@@ -51,6 +54,10 @@ final class AppContainer {
         let logStore = TunnelLogStore()
         let processManager = SSHProcessManager()
 
+        // 持久化 SSH 子进程 PID 列表 — 用来在 App 重启时 sweep 上一会话残留的孤儿
+        let pidStoreURL = appSupport.appendingPathComponent("managed_pids.json")
+        let pidStore = ManagedPIDStore(fileURL: pidStoreURL)
+
         // 2. Application services
         let sshHostManager = SSHHostManager(
             provider: SSHConfigService(),
@@ -61,7 +68,8 @@ final class AppContainer {
             portChecker: portChecker,
             validator: validator,
             logStore: logStore,
-            sshConfigProvider: sshHostManager.provider
+            sshConfigProvider: sshHostManager.provider,
+            pidStore: pidStore
         )
         let reconnectController = ReconnectController()
         let settingsManager = SettingsManager(repository: settingsRepo)
@@ -88,6 +96,7 @@ final class AppContainer {
         self.settingsManager = settingsManager
         self.notificationManager = notificationManager
         self.lifecycleManager = lifecycleManager
+        self.pidStore = pidStore
     }
 
     static func bootstrap() -> AppContainer {
@@ -109,6 +118,14 @@ final class AppContainer {
 
         // 加载 settings
         await settingsManager.load()
+
+        // Sweep 上次会话残留的 SSH 子进程 — 必须在 registerProfile / start 之前
+        // 否则会出现"App 还在 sweep,但用户先点 Start,端口已被本会话的旧 SSH 占住"的竞态
+        await pidStore.load()
+        let killed = await pidStore.sweep()
+        if !killed.isEmpty {
+            print("[Janus] Swept \(killed.count) orphan SSH process(es) from previous session")
+        }
 
         // 注册所有 profile
         for profile in profiles {

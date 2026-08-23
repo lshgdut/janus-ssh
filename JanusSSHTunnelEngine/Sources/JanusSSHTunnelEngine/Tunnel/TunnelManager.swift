@@ -24,6 +24,8 @@ public final class TunnelManager {
     private let logStore: TunnelLogStore
     private let reconnectController: ReconnectController
     private let sshConfigProvider: SSHConfigProviding?
+    /// 可选 — 用于 App 重启后 sweep 孤儿 SSH 进程
+    private let pidStore: ManagedPIDStore?
 
     /// profile 注册表 — 启动前要知道有哪些 profile
     private var profiles: [UUID: Profile] = [:]
@@ -31,13 +33,19 @@ public final class TunnelManager {
     /// 跟踪每个 profile 的事件观察 Task — unregister 时需要 cancel 避免泄漏
     private var observationTasks: [UUID: Task<Void, Never>] = [:]
 
+    /// 用户主动 stop 的 profile 集合 — 用来防止观察任务的
+    /// `handleProcessExit` 把 user-requested termination(SIGTERM/SIGKILL,
+    /// 退出码非 0)误判为 .error。用户 stop 后由 stop() 自己负责置 .stopped。
+    private var userRequestedStop: Set<UUID> = []
+
     public init(
         processManager: SSHProcessManaging,
         portChecker: PortChecking,
         validator: ProfileValidator,
         logStore: TunnelLogStore,
         reconnectController: ReconnectController = ReconnectController(),
-        sshConfigProvider: SSHConfigProviding? = nil
+        sshConfigProvider: SSHConfigProviding? = nil,
+        pidStore: ManagedPIDStore? = nil
     ) {
         self.processManager = processManager
         self.portChecker = portChecker
@@ -45,6 +53,7 @@ public final class TunnelManager {
         self.logStore = logStore
         self.reconnectController = reconnectController
         self.sshConfigProvider = sshConfigProvider
+        self.pidStore = pidStore
     }
 
     // MARK: - Profile registry
@@ -162,6 +171,11 @@ public final class TunnelManager {
             await logStore.append(profileID: profileID, kind: .app,
                                   message: "Tunnel started · PID \(pid.map(String.init) ?? "?")")
 
+            // 记录 PID 到持久化存储,下次 App 启动时 sweep 孤儿进程
+            if let pid = pid, let store = pidStore {
+                await store.record(profileID: profileID, pid: pid)
+            }
+
             // 启动事件观察任务,转发到 logStore
             observationTasks[profileID] = startObserving(profileID: profileID, handle: handle)
         } catch let spawnError as SSHProcessError {
@@ -188,12 +202,30 @@ public final class TunnelManager {
         guard profiles[profileID] != nil else {
             throw TunnelError.profileNotFound(profileID)
         }
-        await processManager.terminate(profileID: profileID, reason: .userRequested)
+
+        // 幂等:已经在 stop / stopped 状态就不重复触发
+        let current = tunnels[profileID]?.state
+        if current == .stopping || current == .stopped {
+            return
+        }
+
+        // 标记 user-requested,阻止后续 .terminated 事件把状态错置为 .error
+        userRequestedStop.insert(profileID)
         updateTunnel(id: profileID) { t in
             t.state = .stopping
         }
+        await processManager.terminate(profileID: profileID, reason: .userRequested)
+
+        // terminate() 已确保进程死亡(graceful SIGTERM 5s 内 / 否则 SIGKILL),
+        // 直接置 .stopped — 不依赖观察任务的 .terminated 事件
+        updateTunnel(id: profileID) { t in
+            t.state = .stopped
+            t.stoppedAt = Date()
+            t.pid = nil
+            t.lastError = nil
+        }
         await logStore.append(profileID: profileID, kind: .app,
-                              message: "User requested stop")
+                              message: "User requested stop · tunnel stopped")
     }
 
     public func restart(profileID: UUID) async throws {
@@ -218,6 +250,15 @@ public final class TunnelManager {
 
     public func stopAll() async {
         await processManager.terminateAll(reason: .userRequested)
+        for id in tunnels.keys {
+            updateTunnel(id: id) { $0.state = .stopping }
+        }
+    }
+
+    /// App willTerminate 用的同步路径 — 不 await,fire-and-forget。
+    /// 即使 App 立刻退出也能保证 SIGKILL 已下发。
+    public func stopAllNow() {
+        processManager.terminateAllNow()
         for id in tunnels.keys {
             updateTunnel(id: id) { $0.state = .stopping }
         }
@@ -273,6 +314,18 @@ public final class TunnelManager {
         code: Int32,
         reason: SSHProcess.ProcessEndedReason
     ) async {
+        // 任何退出路径(用户主动 / 进程自然死)都从持久化 PID 列表里清掉,
+        // 否则 App 重启时 sweep 会误杀还在运行的合法 SSH。
+        if let store = pidStore {
+            await store.remove(profileID: profileID)
+        }
+
+        // 用户主动 stop 时,stop() 已经把状态置 .stopped;
+        // 这里的 .terminated 是 terminate() 之后的副作用,忽略。
+        if userRequestedStop.remove(profileID) != nil {
+            return
+        }
+
         let success = (code == 0)
         updateTunnel(id: profileID) { t in
             t.state = success ? .stopped : .error

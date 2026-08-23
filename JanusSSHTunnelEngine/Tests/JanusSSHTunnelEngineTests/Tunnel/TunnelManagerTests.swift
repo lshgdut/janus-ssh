@@ -174,5 +174,6 @@ final class FakeSSHProcessHandle: SSHProcessHandle, @unchecked Sendable {
     }
 
     func terminate(gracefully: Bool) async throws {}
+    func terminateNow() {}
     func pid() async -> Int32? { return 12345 }
 }

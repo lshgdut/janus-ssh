@@ -55,6 +55,13 @@ public actor SSHProcess: SSHProcessHandle {
     private var stderrBuffer = Data()
     private var continuations: [UUID: AsyncStream<Event>.Continuation] = [:]
 
+    /// 进程组 ID — 用于 SIGKILL 整个进程组,杀掉 SSH 派生的子进程。
+    /// 由 setpgid 在 start() 里设置。
+    /// nonisolated(unsafe) 是安全的:写入只在 start() 内一次,
+    /// 读只在 terminateNow() 内;terminateNow() 调用方需要的是"尽快读到 PID",
+    /// 即便读到未初始化的 0 也只会让 kill(0, SIGKILL) 失败(无害)。
+    nonisolated(unsafe) private var processGroupID: pid_t = 0
+
     public init(
         executable: URL,
         arguments: [String],
@@ -106,6 +113,13 @@ public actor SSHProcess: SSHProcessHandle {
             throw SSHProcessError.spawnFailed(underlying: error)
         }
 
+        // 把 SSH 子进程放进独立的 process group,这样:
+        // 1. terminate 时能 kill 整个 group,清掉 SSH 派生的 ProxyCommand / askpass 等子进程
+        // 2. 不会误伤本 App 的其它子进程(默认共享父进程 group)
+        let sshPID = p.processIdentifier
+        _ = setpgid(sshPID, sshPID)
+        self.processGroupID = sshPID
+
         self.process = p
         self.stdoutPipe = outPipe
         self.stderrPipe = errPipe
@@ -132,30 +146,40 @@ public actor SSHProcess: SSHProcessHandle {
         return p.terminationStatus
     }
 
-    /// 优雅或强制终止
+    /// 优雅或强制终止(异步,会等待进程退出)
     public func terminate(gracefully: Bool) async throws {
         guard let p = process, p.isRunning else {
             throw SSHProcessError.notStarted
         }
 
         if gracefully {
-            p.terminate()  // SIGTERM
-            // 等最多 5 秒
+            p.terminate()  // SIGTERM(Foundation API,只发给主进程)
             try await waitWithTimeout(5.0) { [weak self] in
                 guard let self = self else { return true }
                 return await self.process?.isRunning == false
             }
         }
 
-        // 还在跑就 SIGKILL
+        // 还在跑就 SIGKILL 整个 process group,把 SSH 派生的子进程也一并清掉
         if let p = process, p.isRunning {
-            kill(pid_t(p.processIdentifier), SIGKILL)
-            // 等实际退出(避免上层立即 removeValue 时 Process 还在跑)
+            let pgid = pid_t(p.processIdentifier)
+            _ = kill(-pgid, SIGKILL)
             try await waitWithTimeout(2.0) { [weak self] in
                 guard let self = self else { return true }
                 return await self.process?.isRunning == false
             }
         }
+    }
+
+    /// 同步、立即、不等待的终止。
+    /// 用于 App willTerminate 这种"马上要退、没时间等"的场景。
+    /// 直接 SIGKILL 整个 process group,不等子进程退出。
+    /// nonisolated — 必须能从 SSHProcessHandle 协议 / actor 外部同步调用。
+    /// 通过缓存 processGroupID(在 start() 里 setpgid 后写入)避免 actor 隔离。
+    public nonisolated func terminateNow() {
+        let pgid = processGroupID
+        guard pgid > 0 else { return }
+        _ = kill(-pgid, SIGKILL)
     }
 
     public func pid() -> Int32? {

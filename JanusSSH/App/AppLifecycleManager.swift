@@ -24,35 +24,26 @@ final class AppLifecycleManager {
     }
 
     func start() {
-        // Quit
+        // Quit — willTerminate 是同步通知,App 退出前最后一刻。
+        // 必须同步触发 SIGKILL,不能走 Task(异步任务来不及完成,SSH 就成孤儿了)。
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.handleQuit()
-            }
+        ) { [tunnelManager, reconnectController] _ in
+            // 异步但 fire-and-forget:reconnectController 是 actor,无法同步访问
+            Task { await reconnectController.cancelAll() }
+            // 同步:SIGKILL 整个 SSH 进程组,不等待
+            tunnelManager.stopAllNow()
         })
 
-        // macOS 关机 / 注销
+        // macOS 关机 / 注销 — 同样要走同步 SIGKILL
         observers.append(NotificationCenter.default.addObserver(
             forName: NSWorkspace.willPowerOffNotification,
             object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.handlePowerOff()
-            }
+        ) { [tunnelManager, reconnectController] _ in
+            Task { await reconnectController.cancelAll() }
+            tunnelManager.stopAllNow()
         })
-    }
-
-    private func handleQuit() async {
-        await reconnectController.cancelAll()
-        await tunnelManager.stopAll()
-    }
-
-    private func handlePowerOff() async {
-        await reconnectController.cancelAll()
-        await tunnelManager.stopAll()
     }
 
     deinit {
