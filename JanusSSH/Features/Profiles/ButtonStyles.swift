@@ -52,6 +52,7 @@ private struct PrimaryBody: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .updating($isPressing) { _, state, _ in state = true }
+                    .onEnded { _ in configuration.trigger() }
             )
             .animation(.easeInOut(duration: DesignTokens.buttonTransition),
                        value: isHovered)
@@ -97,6 +98,7 @@ private struct SecondaryBody: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .updating($isPressing) { _, state, _ in state = true }
+                    .onEnded { _ in configuration.trigger() }
             )
             .animation(.easeInOut(duration: DesignTokens.buttonTransition),
                        value: isHovered)

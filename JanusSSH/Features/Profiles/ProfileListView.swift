@@ -397,9 +397,11 @@ private struct ProfileCard: View {
             }
             .buttonStyle(SecondaryButtonStyle())
         case .stopping:
-            Button("Stop") {}
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(true)
+            // 正在 stop 中,保持按钮可点但 action 幂等(重复 stop 由 TunnelManager 内部去重)
+            Button("Stop") {
+                Task { try? await container.tunnelManager.stop(profileID: profile.id) }
+            }
+            .buttonStyle(SecondaryButtonStyle())
         case .error:
             Button("Retry") {
                 Task { try? await container.tunnelManager.start(profileID: profile.id) }
