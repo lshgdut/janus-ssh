@@ -192,6 +192,7 @@ private struct ActionRow: View {
     let description: String
     let actionLabel: String
     let action: () -> Void
+    var tint: Color = .accentColor
 
     var body: some View {
         HStack {
@@ -200,7 +201,9 @@ private struct ActionRow: View {
                 Text(description).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button(actionLabel, action: action).buttonStyle(.bordered)
+            Button(actionLabel, action: action)
+                .buttonStyle(.bordered)
+                .tint(tint)
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
         .overlay(alignment: .bottom) { Divider() }
@@ -212,61 +215,67 @@ private struct DangerZoneGroup: View {
     @State private var showResetConfirm = false
 
     var body: some View {
-        Group {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("!").font(.caption).bold()
-                        .foregroundStyle(.white).frame(width: 16, height: 16)
-                        .background(.red, in: Circle())
-                    Text("危险操作").font(.headline).foregroundStyle(.red)
-                }
-                Text("这些操作不可恢复,请谨慎").font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 20).padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.red.opacity(0.05))
+        // ZStack 显式把背景放到所有内容之下,避免按钮自带的白色覆盖 VStack 背景
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.red.opacity(0.08))
 
-            Button(role: .destructive) {
-                Task { await container.tunnelManager.stopAll() }
-            } label: {
-                HStack {
-                    Text("Stop All Tunnels").font(.body)
-                    Spacer()
-                    Text("Stop All").font(.caption).foregroundStyle(.red)
+            VStack(spacing: 0) {
+                // Header
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("!").font(.caption).bold()
+                            .foregroundStyle(.white).frame(width: 16, height: 16)
+                            .background(.red, in: Circle())
+                        Text("危险操作").font(.headline).foregroundStyle(.red)
+                    }
+                    Text("这些操作不可恢复,请谨慎").font(.caption).foregroundStyle(.secondary)
                 }
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 20).padding(.vertical, 10)
+                .padding(.horizontal, 20).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button(role: .destructive) {
-                showResetConfirm = true
-            } label: {
-                HStack {
-                    Text("Reset Profiles").font(.body)
-                    Spacer()
-                    Text("Reset…").font(.caption).foregroundStyle(.red)
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 20).padding(.vertical, 10)
+                Divider().background(.red.opacity(0.3))
 
-            if showResetConfirm {
-                HStack {
-                    Text("输入 RESET 确认:").font(.caption)
-                    TextField("RESET", text: .constant(""))
-                        .textFieldStyle(.roundedBorder).frame(width: 120)
-                    Button("Confirm") {
-                        for p in container.profiles {
-                            Task { await container.deleteProfile(p.id) }
+                ActionRow(title: "Stop All Tunnels",
+                          description: "停止所有由本应用管理的 SSH Tunnel,然后关闭所有 SSH 进程",
+                          actionLabel: "Stop All",
+                          action: { Task { await container.tunnelManager.stopAll() } },
+                          tint: .red)
+
+                Divider().background(.red.opacity(0.3))
+
+                Button(role: .destructive) {
+                    showResetConfirm = true
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Reset Profiles").font(.body)
+                            Text("删除全部 Profile 与本地状态,不可恢复").font(.caption).foregroundStyle(.secondary)
                         }
-                        showResetConfirm = false
-                    }.buttonStyle(.borderedProminent).tint(.red)
+                        Spacer()
+                        Text("Reset…").font(.caption)
+                    }
                 }
-                .padding(20)
+                .buttonStyle(.bordered).tint(.red)
+                .padding(.horizontal, 20).padding(.vertical, 10)
+
+                if showResetConfirm {
+                    Divider().background(.red.opacity(0.3))
+                    HStack {
+                        Text("输入 RESET 确认:").font(.caption)
+                        TextField("RESET", text: .constant(""))
+                            .textFieldStyle(.roundedBorder).frame(width: 120)
+                        Button("Confirm") {
+                            for p in container.profiles {
+                                Task { await container.deleteProfile(p.id) }
+                            }
+                            showResetConfirm = false
+                        }.buttonStyle(.borderedProminent).tint(.red)
+                    }
+                    .padding(20)
+                }
             }
         }
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.red.opacity(0.5)))
     }
 }

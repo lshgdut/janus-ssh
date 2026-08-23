@@ -44,9 +44,12 @@ struct JanusSSHApp: App {
             // Template NSImage — macOS 自动反色适配 light/dark menu bar
             Image(nsImage: makeMenuBarIcon())
         }
-        // .window 模式在 macOS 14+ 触发 NSXPCDecoder validateAllowedClass 警告
-        // .menu 模式是原生 NSMenu,无 XPC 通信,无警告
-        .menuBarExtraStyle(.menu)
+        // .window 模式:用 SwiftUI 自定义 popover(蓝 S badge、dark material、
+        // hover 显示 Stop/Retry、自定义快捷键样式等),完全按设计稿还原。
+        // 之前用 .menu 模式是为了规避 NSXPCDecoder 警告,但代价是所有
+        // SwiftUI 自定义样式被原生 NSMenu 吞掉,设计还原度为零。
+        // .window 的 XPC 警告是警告而非 error,功能上正常,这里以视觉为优先。
+        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView()
