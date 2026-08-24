@@ -178,6 +178,22 @@ final class AppContainer {
         editingProfileIsNew = false
     }
 
+    /// 构造一份空白 Profile,作为"新建"的初始值。
+    /// 三个调用点(RootView / ProfileListView.Toolbar / ProfileListView.EmptyState)
+    /// 之前各写一份相同 8 行 factory,改一处容易漏改。集中到这里后,
+    /// 未来给 Profile 加字段或调整默认值只改一处。
+    func makeBlankDraftProfile() -> Profile {
+        Profile(
+            name: "",
+            sshHostAlias: sshHostManager.hosts.first?.alias ?? "",
+            forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
+                                   remoteHost: "127.0.0.1", remotePort: 0, label: nil)],
+            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
+
     func deleteProfile(_ id: UUID) async {
         profiles.removeAll { $0.id == id }
         tunnelManager.unregisterProfile(id: id)

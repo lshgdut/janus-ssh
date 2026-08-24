@@ -238,8 +238,8 @@ private struct MenuBarProfileRow: View {
                         ProgressView()
                             .controlSize(.small)
                             .transition(.opacity)
-                    } else {
-                        Text(actionLabel)
+                    } else if let label = actionLabel {
+                        Text(label)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(actionColor)
                             .transition(.opacity)
@@ -252,7 +252,7 @@ private struct MenuBarProfileRow: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())  // 整行可点
-        .background(hoverHighlight)
+        .hoverHighlight(hovering)
         // onHover 推到下一个 runloop tick — 鼠标若正好停在 row 上、popover
         // 一出现 .onHover 会立刻 fire,直接改 hovering 撞上 AppKit 的
         // window install-layout pass,触发 layoutSubtreeIfNeeded recursion warning。
@@ -263,14 +263,6 @@ private struct MenuBarProfileRow: View {
         // 正在 stop / start / reconnect 的过渡状态 — 禁用整行点击,
         // 避免重复 fire stop() / start()。
         .disabled(isPending)
-    }
-
-    private var hoverHighlight: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(hovering
-                  ? Color.accentColor.opacity(colorScheme == .dark ? 0.35 : 0.18)
-                  : .clear)
-            .padding(.horizontal, 6)
     }
 
     /// Action 正在执行的过渡状态 — stop 已发出但 SSH 还没退出 / start 已发出但
@@ -284,15 +276,14 @@ private struct MenuBarProfileRow: View {
         }
     }
 
-    private var actionLabel: String {
+    /// 给非 pending 状态的 row 显示的操作文本。pending 状态(.starting /
+    /// .reconnecting / .stopping)返回 nil — caller 用 spinner 占位。
+    private var actionLabel: String? {
         switch tunnel.state {
         case .running: return "Stop"
-        case .error: return "Retry"
+        case .error:   return "Retry"
         case .stopped: return "Start"
-        case .starting, .reconnecting, .stopping:
-            // 实际不会被用到(isPending 分支显示 spinner),保留 default 给
-            // 未来 TunnelState 新增 case 时编译器强制更新。
-            return ""
+        case .starting, .reconnecting, .stopping: return nil
         }
     }
 
@@ -372,7 +363,6 @@ private struct MenuBarItem: View {
     let shortcut: String
     let action: () -> Void
     @State private var hovering = false
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -395,20 +385,10 @@ private struct MenuBarItem: View {
         .contentShape(Rectangle())
         // hover 高亮作为 Button 的 background — SwiftUI 的 .background
         // 会自动按 Button 的实际尺寸渲染,而不是 label 的尺寸
-        .background(hoverHighlight)
+        .hoverHighlight(hovering)
         .onHover { hovering = $0 }
     }
-
-    private var hoverHighlight: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(hovering
-                  ? Color.accentColor.opacity(colorScheme == .dark ? 0.35 : 0.18)
-                  : .clear)
-            .padding(.horizontal, 6)
-            .animation(.easeOut(duration: 0.08), value: hovering)
-    }
 }
-// MARK: - Previews
 // 在 Xcode canvas 里直接预览 MenuBar 效果,改 padding / 字号 / hover 立刻看到反馈,
 // 不需要跑 App + 点 menu bar 图标。
 // 注意:Preview 里启动 AppContainer 会走完整 init(包括 sshConfigProvider 等),

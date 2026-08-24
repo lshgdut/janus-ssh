@@ -150,3 +150,53 @@ extension PrimitiveButtonStyle where Self == PrimaryButtonStyle {
 extension PrimitiveButtonStyle where Self == SecondaryButtonStyle {
     static var appSecondary: SecondaryButtonStyle { .init() }
 }
+
+// MARK: - Hover highlight
+//
+// 统一的"hover 时背景高亮"修饰,集中控制 opacity / padding / 形状。
+// 之前 MenuBarProfileRow / MenuBarItem / SidebarRow / StepperItem 四处
+// 各自抄一份 `RoundedRectangle(cornerRadius: 6).fill(hovering ? accent.opacity(...) : .clear)`
+// — 0.18 / 0.35 漂移,design token 在调用方完全没用上。
+//
+// 用法:@State hovering + .hoverHighlight(hovering)
+
+struct HoverHighlight: ViewModifier {
+    let isHovered: Bool
+    @Environment(\.colorScheme) private var colorScheme
+    var lightOpacity: Double = 0.18
+    var darkOpacity: Double = 0.35
+    var padding: CGFloat = 6
+    var cornerRadius: CGFloat = 6
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(isHovered
+                          ? Color.accentColor.opacity(colorScheme == .dark ? darkOpacity : lightOpacity)
+                          : .clear)
+                    .padding(.horizontal, padding)
+            )
+    }
+}
+
+extension View {
+    /// 一行调用 — 装一个跟 MenuBar 现有 hover 视觉一致的背景。
+    /// 默认 light 0.18 / dark 0.35 是 MenuBar 现状;SidebarRow 用 0.15 / 0.30
+    /// 时显式覆盖。
+    func hoverHighlight(
+        _ isHovered: Bool,
+        lightOpacity: Double = 0.18,
+        darkOpacity: Double = 0.35,
+        padding: CGFloat = 6,
+        cornerRadius: CGFloat = 6
+    ) -> some View {
+        modifier(HoverHighlight(
+            isHovered: isHovered,
+            lightOpacity: lightOpacity,
+            darkOpacity: darkOpacity,
+            padding: padding,
+            cornerRadius: cornerRadius
+        ))
+    }
+}

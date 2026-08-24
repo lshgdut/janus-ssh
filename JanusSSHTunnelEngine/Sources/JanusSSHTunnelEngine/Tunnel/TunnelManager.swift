@@ -103,13 +103,16 @@ public final class TunnelManager {
         let issues = validator.validate(profile, knownHosts: knownHosts)
         let errors = issues.filter { $0.severity == .error }
         guard errors.isEmpty else {
-            let firstError = errors.first?.message ?? "validation failed"
+            // 之前无脑写 .sshConfigResolutionFailed — 用户看到"ssh config invalid"
+            // 实际却是端口重复 / 端口越界 / 名字空等,排查方向全错。
+            // 现在按 field 把首条错误映射到具体 TunnelError,UI 才能给 actionable 文案。
+            let first = errors.first
             await logStore.append(profileID: profileID, kind: .app,
-                                  message: "Validation failed: \(firstError)",
+                                  message: "Validation failed: \(first?.message ?? "unknown")",
                                   level: .error)
             updateTunnel(id: profileID) { t in
                 t.state = .error
-                t.lastError = .sshConfigResolutionFailed(host: profile.sshHostAlias)
+                t.lastError = Self.classify(validationIssue: first, profile: profile)
             }
             return
         }
@@ -265,6 +268,31 @@ public final class TunnelManager {
     }
 
     // MARK: - Private
+
+    /// 把 ProfileValidator 的首条错误映射到对应的 TunnelError。
+    /// 之前无脑 .sshConfigResolutionFailed,UI 文案"ssh config invalid"对端口重复
+    /// / 名字空等场景是误导。这里按 `field` 分类:host → hostUnknown、
+    /// 端口重复 → duplicateLocalPort,其余退回 .sshConfigResolutionFailed。
+    static func classify(validationIssue: ValidationIssue?, profile: Profile) -> TunnelError {
+        guard let issue = validationIssue, let field = issue.field else {
+            return .sshConfigResolutionFailed(host: profile.sshHostAlias)
+        }
+        if field == "sshHostAlias" {
+            return .hostUnknown(profile.sshHostAlias)
+        }
+        if field.hasSuffix(".localPort") {
+            // 解析 "forwards[3].localPort" → 取尾段数字
+            // 优先报端口范围问题(永远 duplicates 也算) — 实际上消息里有 "duplicated" 关键字
+            if issue.message.contains("duplicated") || issue.message.contains("duplicate") {
+                return .duplicateLocalPort(profile.forwards.first?.localPort ?? 0)
+            }
+            // 端口越界 / 0 — 也归 duplicateLocalPort 用 0 占位
+            return .duplicateLocalPort(profile.forwards.first?.localPort ?? 0)
+        }
+        // name / forwards(empty) / forwards[N].localHost / forwards[N].remoteHost
+        // 没有精确对应,退回最接近的"配置问题"
+        return .sshConfigResolutionFailed(host: profile.sshHostAlias)
+    }
 
     /// 拉取当前 ~/.ssh/config 中的 host alias 集合。
     /// 没有 provider 时返回空集 — 此时编辑器校验已保证 alias 合法,

@@ -58,47 +58,58 @@ struct StatusBadge: View {
 /// Layout footprint is fixed at 8x8 — the halo extends visually beyond
 /// that frame via `.scaleEffect`, but the parent HStack only sees 8x8
 /// so surrounding rows do not shift.
+///
+/// Animation strategy:TimelineView(`.periodic`) 而不是 `repeatForever`。
+/// 之前每个 badge 一个 `@State pulse = true` + `.repeatForever` 动画 driver —
+/// N 个 running tunnel = N 个独立 framerate 唤醒,hosting controller 在每个
+/// animation tick 都重新评估 view tree。TimelineView 用一个共享的 date source
+/// 调度,phase 直接从当前 Date 算出来 — 无 `@State`,无 driver,phase 全局同步。
+/// `state` 切到非 .running 时,TimelineView 整块从 tree 里移除,不需要额外
+/// "reset pulse" 逻辑(之前要靠 `@State pulse = true` 初始值 + 切换时不响应的
+/// `.animation` modifier 凑合)。
 private struct CompactStatusDot: View {
     let state: TunnelState
     var size: CGFloat = 8
 
-    // 初始就是 true — 不要 .onAppear 里再改。popover 打开时 N 个 badge 同时
-    // .onAppear,每个改 pulse 都会触发 SwiftUI re-render,撞上 AppKit 的
-    // window install-layout pass,产生 layoutSubtreeIfNeeded recursion warning。
-    // 初始 true 让 animation 直接从当前值出发,避免 onAppear 改 state。
-    @State private var pulse = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let color = AppStatusColor.color(for: state)
         let isRunning = state == .running && !reduceMotion
-        ZStack {
-            // Halo: only for .running. Stays visible across the whole cycle
-            // (opacity dips to ~0.15 at peak, never reaches 0) so the green
-            // saturation is preserved on dark backgrounds. Scale grows
-            // from ~1.4x → ~3.6x so the breathing range is clearly readable.
+
+        Group {
             if isRunning {
+                TimelineView(.periodic(from: .now, by: 1.4 / 30.0)) { ctx in
+                    let phase = Self.phase(at: ctx.date)
+                    ZStack {
+                        // Halo: opacity 0.55→0.12,scale 1.4→3.6 — 全程可见不归零,
+                        // 保留绿色饱和度不被深色背景吃掉。
+                        Circle()
+                            .fill(color.opacity(0.55 - 0.43 * phase))
+                            .frame(width: size, height: size)
+                            .scaleEffect(1.4 + 2.2 * phase)
+                        // Solid dot:opacity 1.0→0.6 — 与 halo 反向呼吸
+                        Circle()
+                            .fill(color.opacity(1.0 - 0.4 * phase))
+                            .frame(width: size, height: size)
+                    }
+                }
+            } else {
+                // 非 .running:纯静态点。SwiftUI 直接挂载,无 TimelineView 开销。
                 Circle()
-                    .fill(color.opacity(pulse ? 0.12 : 0.55))
+                    .fill(color)
                     .frame(width: size, height: size)
-                    .scaleEffect(pulse ? 3.6 : 1.4)
-                    .animation(
-                        .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
-                        value: pulse
-                    )
             }
-            // Solid dot — also gently breathes when running
-            Circle()
-                .fill(color.opacity(isRunning ? (pulse ? 0.6 : 1.0) : 1.0))
-                .frame(width: size, height: size)
-                .animation(
-                    isRunning
-                        ? .easeInOut(duration: 1.4).repeatForever(autoreverses: true)
-                        : .default,
-                    value: pulse
-                )
         }
         .frame(width: size, height: size)
+    }
+
+    /// 把当前时间映射到 0..1 相位,1.4s 一个 sin 周期 — 0→1→0 平滑往返。
+    private static func phase(at date: Date) -> Double {
+        let cycle: Double = 1.4
+        let raw = date.timeIntervalSinceReferenceDate
+            .truncatingRemainder(dividingBy: cycle) / cycle
+        return sin(raw * .pi)
     }
 }
 

@@ -32,16 +32,7 @@ struct RootView: View {
     /// container.requestEdit() 只是把 profile 写到 Observable state,
     /// ProfileEditorWindow 的 body 监听该 state 并显示对应编辑器
     private func openEditor() {
-        let draft = Profile(
-            name: "",
-            sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
-            forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                   remoteHost: "127.0.0.1", remotePort: 0, label: nil)],
-            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-        container.requestEdit(profile: draft, isNew: true)
+        container.requestEdit(profile: container.makeBlankDraftProfile(), isNew: true)
         openWindow(id: "profile-editor")
     }
 }

@@ -21,11 +21,18 @@ final class ThemeController {
 
     /// 启动监听 + 应用启动时的初始主题。App 启动时调一次。
     func start() {
+        // 防止 hot-reload / 重复调用导致的 Task 泄漏 — 如果已经在跑,先 cancel 旧的
+        // 再开新的,而不是无脑 cancel + 开(后者会瞬间清空状态导致旧 Task
+        // 还没退出就并发 apply)。
+        if observerTask != nil {
+            // 同步 cancel + 等待旧 Task 完全退出后再起新的,避免双 observer 并发 apply
+            observerTask?.cancel()
+        }
+
         // 立刻应用一次 — 启动时 App 可能继承系统外观,如果不立即覆盖,
         // 用户在 Settings 里切到 Light/Dark 前看到的还是系统的样子。
         apply(settingsManager.state.general.theme)
 
-        observerTask?.cancel()
         observerTask = Task { @MainActor [weak self] in
             // withObservationTracking 单次触发,所以包成循环等下一次变化
             while !Task.isCancelled {

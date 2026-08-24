@@ -135,15 +135,29 @@ final class MenuBarController {
         // 初次同步可见性
         applyVisibility(container.settingsManager.state.general.showMenuBarIcon)
 
-        // 轮询 settings — 500ms 一次足够响应 Settings 切换
-        // SwiftUI 的 @Observable 跨 actor / 跨对象订阅成本高,轮询更直接
+        // 观察 settings — 之前是 500ms 轮询,App 全程都跑,空转浪费 CPU。
+        // 改成 withObservationTracking 订阅,只在 showMenuBarIcon 真的被写入时
+        // 才 fire,跟 ThemeController 同一套模式。
         visibilityTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                if let self = self {
-                    let target = self.container.settingsManager.state.general.showMenuBarIcon
-                    self.applyVisibility(target)
-                }
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard let self = self else { return }
+                let current = self.container.settingsManager.state.general.showMenuBarIcon
+                self.applyVisibility(current)
+                // 单次 onChange,re-arm 等下一次写入
+                await self.waitForVisibilityChange()
+                if Task.isCancelled { return }
+            }
+        }
+    }
+
+    /// 阻塞直到 showMenuBarIcon 字段被写入一次。
+    /// withObservationTracking 的 onChange 只 fire 一次,所以外层 while 循环复用。
+    private func waitForVisibilityChange() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            withObservationTracking {
+                _ = self.container.settingsManager.state.general.showMenuBarIcon
+            } onChange: {
+                continuation.resume()
             }
         }
     }
