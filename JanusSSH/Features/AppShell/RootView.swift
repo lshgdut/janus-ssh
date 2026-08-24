@@ -36,12 +36,12 @@ struct RootView: View {
             name: "",
             sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
             forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                   remoteHost: "", remotePort: 0, label: nil)],
+                                   remoteHost: "127.0.0.1", remotePort: 0, label: nil)],
             behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
             createdAt: Date(),
             updatedAt: Date()
         )
-        container.requestEdit(profile: draft)
+        container.requestEdit(profile: draft, isNew: true)
         openWindow(id: "profile-editor")
     }
 }

@@ -22,9 +22,13 @@ struct ProfileEditorView: View {
     @State private var draft: Profile
     @State private var issues: [ValidationIssue] = []
     @State private var currentStep: Int = 1
+    /// 区分新建/编辑 — 新建模式下隐藏 Delete Profile、Save&Stop、Save&Restart
+    /// (这些操作只对已存在的 profile 才有意义)。
+    let isNew: Bool
 
-    init(initial: Profile) {
+    init(initial: Profile, isNew: Bool = false) {
         _draft = State(initialValue: initial)
+        self.isNew = isNew
     }
 
     var body: some View {
@@ -54,7 +58,10 @@ struct ProfileEditorView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Profiles /")
                     .font(.caption).foregroundStyle(.secondary)
-                Text(draft.name.isEmpty ? "New Profile" : "Edit · \(draft.name)")
+                // 标题跟着 isNew 走 — 之前用 draft.name.isEmpty 判,
+                // 用户还没存盘就先在 name 里敲了字,标题就跳成 "Edit · xxx",
+                // 暗示 profile 已存在,造成混淆。
+                Text(isNew ? "New Profile" : "Edit · \(draft.name)")
                     .font(.title2.weight(.semibold))
             }
             Spacer()
@@ -64,15 +71,20 @@ struct ProfileEditorView: View {
             // 右:动作按钮
             HStack(spacing: 8) {
                 Button("Cancel") { dismiss() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.appSecondary)
                     .keyboardShortcut(.cancelAction)
-                Button("Save & Stop") { save(restart: false) }
-                    .buttonStyle(.bordered)
-                    .disabled(!canSave)
-                Button("Save & Restart") { save(restart: true) }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(!canSave)
+                // Save&Stop / Save&Restart 只对已存在的 profile 有意义 —
+                // 新建 profile 时 SSH tunnel 还没起,没东西可以 stop/restart。
+                // 新建模式下底部 Save 按钮承担提交职责,Cmd+Return 走它。
+                if !isNew {
+                    Button("Save & Stop") { save(restart: false) }
+                        .buttonStyle(.appSecondary)
+                        .disabled(!canSave)
+                    Button("Save & Restart") { save(restart: true) }
+                        .buttonStyle(.appPrimary)
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .disabled(!canSave)
+                }
             }
         }
         .padding(.horizontal, 24).padding(.vertical, 14)
@@ -109,27 +121,12 @@ struct ProfileEditorView: View {
     private var stepperSidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(steps, id: \.number) { step in
-                Button {
-                    withAnimation { currentStep = step.number }
-                } label: {
-                    HStack(spacing: 12) {
-                        Text("\(step.number)")
-                            .font(.system(.callout, design: .rounded).weight(.semibold))
-                            .foregroundStyle(currentStep == step.number ? Color.accentColor : .secondary)
-                            .frame(width: 20, alignment: .center)
-                        Text(step.title)
-                            .font(.callout)
-                            .foregroundStyle(currentStep == step.number ? .primary : .secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(
-                        currentStep == step.number
-                            ? Color.accentColor.opacity(0.08)
-                            : Color.clear
-                    )
-                }
-                .buttonStyle(.plain)
+                StepperItem(
+                    number: step.number,
+                    title: step.title,
+                    isSelected: currentStep == step.number,
+                    onTap: { withAnimation { currentStep = step.number } }
+                )
             }
             Spacer()
         }
@@ -148,17 +145,27 @@ struct ProfileEditorView: View {
     // MARK: - Content
 
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
-                section1
-                section2
-                section3
-                section4
+        // ScrollViewReader 让左侧 stepper sidebar 点击能滚动右侧内容到对应 section。
+        // 每个 section 用 `.id(step.number)` 做锚点,onChange of currentStep 触发
+        // scrollTo(anchor: .top) — 让 section 顶端对齐 viewport 顶端,而不是中间。
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 32) {
+                    section1.id(1)
+                    section2.id(2)
+                    section3.id(3)
+                    section4.id(4)
+                }
+                .padding(32)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(32)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .textBackgroundColor))
+            .onChange(of: currentStep) { _, newStep in
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    proxy.scrollTo(newStep, anchor: .top)
+                }
+            }
         }
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     // MARK: - Section 1: 基本信息
@@ -223,11 +230,11 @@ struct ProfileEditorView: View {
             Button {
                 draft.forwards.append(PortForward(
                     localHost: "127.0.0.1", localPort: 0,
-                    remoteHost: "", remotePort: 0, label: nil))
+                    remoteHost: "127.0.0.1", remotePort: 0, label: nil))
             } label: {
                 Label("Add Forward", systemImage: "plus")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.appSecondary)
             .controlSize(.small)
 
             // 错误汇总
@@ -296,24 +303,28 @@ struct ProfileEditorView: View {
             Spacer()
 
             // 右:删除 + 保存
-            Button(role: .destructive) {
-                Task {
-                    await container.deleteProfile(draft.id)
-                    dismiss()
+            // Delete 只对已存在的 profile 才有意义 — 新建 profile 还没存盘,
+            // 没东西可删,留着只会误导用户。
+            if !isNew {
+                Button(role: .destructive) {
+                    Task {
+                        await container.deleteProfile(draft.id)
+                        dismiss()
+                    }
+                } label: {
+                    Label("Delete Profile", systemImage: "trash")
+                        .foregroundStyle(.red)
                 }
-            } label: {
-                Label("Delete Profile", systemImage: "trash")
-                    .foregroundStyle(.red)
+                .buttonStyle(.appSecondary)
+                .tint(.red)
             }
-            .buttonStyle(.bordered)
-            .tint(.red)
 
             Button {
                 save(restart: false)
             } label: {
                 Text("Save").frame(minWidth: 60)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.appPrimary)
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!canSave)
         }
@@ -349,6 +360,62 @@ struct ProfileEditorView: View {
             }
             dismiss()
         }
+    }
+}
+
+// MARK: - Side menu item
+
+/// 编辑页左侧 stepper 的一行 — 抽出成独立 View 才能挂自己的 @State(hovering)。
+/// 三个细节:
+///   1. .contentShape(Rectangle()) 让整行都可点 — 不加的话只有文字区域响应,
+///      空白 padding 区域点不到。
+///   2. hover 时切手指光标 + 浅色背景 — 与 ButtonStyles 的处理方式一致。
+///   3. onChange(of: hovering) 推/弹 NSCursor,与全 App 其它按钮同一套约定。
+private struct StepperItem: View {
+    let number: Int
+    let title: String
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Text("\(number)")
+                    .font(.system(.callout, design: .rounded).weight(.semibold))
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    .frame(width: 20, alignment: .center)
+                Text(title)
+                    .font(.callout)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(backgroundFill)
+            .contentShape(Rectangle())   // 整行都是 hit area,不只是文字
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.08), value: hovering)
+    }
+
+    /// 选中态 = accent tint(0.08),hover = 同一色调的 0.04,
+    /// 普通态 = 透明。叠加在一起 hover + 选中视觉层级依然清楚。
+    private var backgroundFill: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(isSelected
+                  ? Color.accentColor.opacity(0.08)
+                  : (hovering ? Color.accentColor.opacity(0.04) : .clear))
+            .padding(.horizontal, 8)
+            .onChange(of: hovering) { _, h in
+                // 切手指光标 — 与 ButtonStyles.swift 的 push/pop 模式一致。
+                // 嵌套 Button 用 .buttonStyle(.plain),SwiftUI 默认不会切光标,
+                // 所以这里手动管 NSCursor 的 push/pop 栈。
+                if h { NSCursor.pointingHand.push() }
+                else  { NSCursor.pop() }
+            }
     }
 }
 
@@ -416,7 +483,7 @@ private struct ForwardRow: View {
                 .foregroundStyle(.tertiary)
                 .font(.callout)
             // REMOTEHOST
-            TextField("10.20.0.15", text: $forward.remoteHost)
+            TextField("127.0.0.1", text: $forward.remoteHost)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.body, design: .monospaced))
                 .frame(width: 200)
@@ -426,17 +493,9 @@ private struct ForwardRow: View {
                 .multilineTextAlignment(.leading)
                 .font(.system(.body, design: .monospaced))
                 .frame(width: 100)
-            // Copy
-            Button {
-                let port = NSPasteboard.general
-                port.clearContents()
-                port.setString(forward.sshArgument, forType: .string)
-            } label: {
-                Image(systemName: "doc.on.doc")
-            }
-            .buttonStyle(.borderless)
-            .help("复制 -L 参数")
-            // Delete
+            // Delete — 每条 forward 只留这一个 row 动作;
+            // 复制整个 ssh 命令走底部 CommandPreview 的 Copy 按钮,
+            // 单条 -L 参数复制用处不大(用户要复制也都是复制完整命令)。
             Button(role: .destructive) {
                 allForwards.removeAll { $0.id == forward.id }
             } label: {
@@ -454,42 +513,62 @@ private struct ForwardRow: View {
 private struct CommandPreview: View {
     let profile: Profile
     @State private var cmd: String = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Copy 按钮
-            HStack {
-                Spacer()
-                Button {
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(cmd, forType: .string)
-                } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(.white)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.black.opacity(0.85))
-
-            // 命令文本
+        // 之前:硬编码 .black / .white,light 模式下变成突兀的黑色块;
+        // 现在跟 colorScheme 走 — light 灰底深字,dark 深底浅字。
+        // 布局也简化:不再分 header bar + body 两段,Copy 按钮浮在右上角,
+        // 命令区右侧预留 76pt 给按钮,不重叠。
+        ZStack(alignment: .topTrailing) {
+            // 命令文本(横向滚动)
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(cmd.isEmpty ? "$ ssh production" : cmd)
                     .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(codeForeground)
                     .padding(14)
+                    .padding(.trailing, 76)   // 给右上角的 Copy 按钮留位置
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Color.black)
+
+            // Copy 按钮 — 浮在右上角,去掉原来 .tint(.white) 强制白色
+            Button {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(cmd, forType: .string)
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+                    .font(.caption)
+            }
+            .buttonStyle(.appSecondary)
+            .controlSize(.small)
+            .padding(8)
         }
+        .background(codeBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.1), lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(codeBorder, lineWidth: 1)
+        )
         .onAppear { rebuild() }
         .onChange(of: profile) { _, _ in rebuild() }
+    }
+
+    /// Code block 背景 — 比页面背景深一档(light)/浅一档(dark),让 code block
+    /// 视觉上是"内嵌"的。完全用灰度,避免在两个 mode 间切色相。
+    private var codeBackground: Color {
+        colorScheme == .dark ? Color(white: 0.10) : Color(white: 0.96)
+    }
+
+    /// 文字 — 高对比度但不刺眼:light mode 用 #2E2E2E(几乎黑但略带暖),
+    /// dark mode 用 #E6E6E6(几乎白但略带冷)。比纯黑/纯白柔和。
+    private var codeForeground: Color {
+        colorScheme == .dark ? Color(white: 0.90) : Color(white: 0.18)
+    }
+
+    /// 边框 — 极淡,只是为了跟页面 bg 分开,不喧宾夺主
+    private var codeBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
     }
 
     private func rebuild() {
@@ -516,7 +595,7 @@ struct ProfileEditorWindow: View {
     var body: some View {
         Group {
             if let profile = container.editingProfile {
-                ProfileEditorView(initial: profile)
+                ProfileEditorView(initial: profile, isNew: container.editingProfileIsNew)
                     .onDisappear { container.closeEditor() }
             } else {
                 VStack(spacing: 8) {

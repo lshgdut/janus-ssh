@@ -369,3 +369,24 @@ public final class WeakSelf<T: AnyObject>: @unchecked Sendable {
     weak var value: T?
     public init(_ value: T) { self.value = value }
 }
+
+#if DEBUG
+public extension TunnelManager {
+    /// 仅供 SwiftUI Preview / Live Preview 注入 mock state。
+    /// 不能用于生产代码 — 直接绕过状态机。
+    @MainActor
+    func _previewSetState(profileID: UUID,
+                          state: TunnelState,
+                          startedAt: Date? = nil,
+                          stoppedAt: Date? = nil,
+                          lastError: TunnelError? = nil) {
+        guard tunnels[profileID] != nil else { return }
+        updateTunnel(id: profileID) { t in
+            t.state = state
+            t.startedAt = startedAt
+            t.stoppedAt = stoppedAt
+            t.lastError = lastError
+        }
+    }
+}
+#endif

@@ -252,7 +252,7 @@ private struct TestButton: View {
                     Text(label).foregroundStyle(labelColor)
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.appSecondary)
             .controlSize(.small)
             .disabled(testing)
 

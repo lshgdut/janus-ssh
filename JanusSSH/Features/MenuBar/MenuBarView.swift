@@ -7,6 +7,7 @@ import JanusSSHTunnelEngine
 struct MenuBarView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openSettings) private var openSettings
 
     private let popoverWidth: CGFloat = 320
 
@@ -120,22 +121,32 @@ struct MenuBarView: View {
                 Task { await container.tunnelManager.stopAll() }
             }
             rowDivider
+            // 用 SwiftUI 标准 environment — 之前用 janusssh:// URL scheme
+            // 没在 Info.plist 注册,NSWorkspace.open 静默失败。
+            //
+            // ⚠️ 关键 — openWindow(id:) 在 NSHostingController/NSPopover 上下文里**无效**:
+            // SwiftUI 的 \.openWindow env value 由 Window scene 提供,
+            // 但 NSPopover 不是 SwiftUI Window scene,所以这里拿到的 openWindow 是空操作。
+            // 改用 AppKit 直接找到 main Window + makeKeyAndOrderFront。
             MenuBarItem(label: "Open Application", shortcut: "⌘1") {
-                NSApp.activate(ignoringOtherApps: true)
-                if let url = URL(string: "janusssh://main") {
-                    NSWorkspace.shared.open(url)
+                Task { @MainActor in
+                    NSApp.activate(ignoringOtherApps: true)
+                    AppWindowFocus.focusMain()
                 }
             }
+            // 用 \.openSettings — 之前 NSApp.sendAction(showSettingsWindow:)
+            // 从 MenuBarExtra 触发不稳定。
             MenuBarItem(label: "Settings…", shortcut: "⌘,") {
-                if #available(macOS 14, *) {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }
+                openSettings()
+                NSApp.activate(ignoringOtherApps: true)
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
                 Task { await container.sshHostManager.refresh() }
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
+                // 事件监听器(在 MenuBarController.installOutsideClickMonitor
+                // 装的)负责 dismiss popover — 所以这里直接 terminate 就行。
                 NSApp.terminate(nil)
             }
         }
@@ -166,7 +177,8 @@ struct MenuBarView: View {
             .tracking(0.8)
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
+            // 设计稿:RUNNING 上下都有明显呼吸空间
+            .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 6)
     }
 
     private func emptyHint(_ text: String) -> some View {
@@ -208,7 +220,9 @@ private struct MenuBarProfileRow: View {
                 StatusBadge(state: tunnel.state, style: .compact)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(profile.name)
-                        .font(.system(size: 12, weight: .medium))
+                        // 设计稿:profile 名用 regular 字重,不要 medium/bold
+                        // 整体感觉更轻盈、更克制
+                        .font(.system(size: 12.5, weight: .regular))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(metadata)
@@ -218,29 +232,67 @@ private struct MenuBarProfileRow: View {
                 }
                 Spacer(minLength: 8)
                 if hovering {
-                    Text(actionLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(actionColor)
+                    // pending 状态(action 已经在跑)显示 spinner,而不是再显示
+                    // "Stop" / "Retry" —— 避免用户重复点击触发竞态。
+                    if isPending {
+                        ProgressView()
+                            .controlSize(.small)
+                            .transition(.opacity)
+                    } else {
+                        Text(actionLabel)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(actionColor)
+                            .transition(.opacity)
+                    }
                 }
             }
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
+            .padding(.horizontal, 12).padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(hovering ? Color.accentColor.opacity(colorScheme == .dark ? 0.25 : 0.12) : .clear)
-                .padding(.horizontal, 6)
-        )
-        .onHover { hovering = $0 }
+        .contentShape(Rectangle())  // 整行可点
+        .background(hoverHighlight)
+        // onHover 推到下一个 runloop tick — 鼠标若正好停在 row 上、popover
+        // 一出现 .onHover 会立刻 fire,直接改 hovering 撞上 AppKit 的
+        // window install-layout pass,触发 layoutSubtreeIfNeeded recursion warning。
+        .onHover { h in
+            Task { @MainActor in hovering = h }
+        }
+        .animation(.easeOut(duration: 0.08), value: hovering)
+        // 正在 stop / start / reconnect 的过渡状态 — 禁用整行点击,
+        // 避免重复 fire stop() / start()。
+        .disabled(isPending)
+    }
+
+    private var hoverHighlight: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(hovering
+                  ? Color.accentColor.opacity(colorScheme == .dark ? 0.35 : 0.18)
+                  : .clear)
+            .padding(.horizontal, 6)
+    }
+
+    /// Action 正在执行的过渡状态 — stop 已发出但 SSH 还没退出 / start 已发出但
+    /// tunnel 还没 connected / reconnect 还在重试中。这些状态下:
+    ///   - 整行 Button 禁用(避免重复触发)
+    ///   - action 区显示 spinner 而不是 "Stop" 文字
+    private var isPending: Bool {
+        switch tunnel.state {
+        case .starting, .reconnecting, .stopping: return true
+        case .running, .error, .stopped:          return false
+        }
     }
 
     private var actionLabel: String {
         switch tunnel.state {
-        case .running, .starting, .reconnecting, .stopping: return "Stop"
+        case .running: return "Stop"
         case .error: return "Retry"
         case .stopped: return "Start"
+        case .starting, .reconnecting, .stopping:
+            // 实际不会被用到(isPending 分支显示 spinner),保留 default 给
+            // 未来 TunnelState 新增 case 时编译器强制更新。
+            return ""
         }
     }
 
@@ -274,12 +326,16 @@ private struct MenuBarProfileRow: View {
     }
 
     private func performAction() {
+        // 防御:即使 .disabled 因为某些原因被绕过,这里也再卡一次
+        guard !isPending else { return }
         Task {
             switch tunnel.state {
-            case .running, .starting, .reconnecting, .stopping:
+            case .running:
                 try? await container.tunnelManager.stop(profileID: profile.id)
             case .error, .stopped:
                 try? await container.tunnelManager.start(profileID: profile.id)
+            case .starting, .reconnecting, .stopping:
+                return  // pending,不该到这里
             }
         }
     }
@@ -329,16 +385,48 @@ private struct MenuBarItem: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 14).padding(.vertical, 7)
+            // 设计稿:menu item 上下 ~9pt 呼吸,与 profile 行保持节奏一致
+            .padding(.horizontal, 14).padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(hovering ? Color.accentColor.opacity(colorScheme == .dark ? 0.25 : 0.12) : .clear)
-                .padding(.horizontal, 6)
-        )
+        // contentShape 必须在 Button 外层 — 否则 MenuBarExtra 里
+        // hit-test 不完整,只有文字区域响应点击,留白处不响应
+        .contentShape(Rectangle())
+        // hover 高亮作为 Button 的 background — SwiftUI 的 .background
+        // 会自动按 Button 的实际尺寸渲染,而不是 label 的尺寸
+        .background(hoverHighlight)
         .onHover { hovering = $0 }
     }
+
+    private var hoverHighlight: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(hovering
+                  ? Color.accentColor.opacity(colorScheme == .dark ? 0.35 : 0.18)
+                  : .clear)
+            .padding(.horizontal, 6)
+            .animation(.easeOut(duration: 0.08), value: hovering)
+    }
 }
+// MARK: - Previews
+// 在 Xcode canvas 里直接预览 MenuBar 效果,改 padding / 字号 / hover 立刻看到反馈,
+// 不需要跑 App + 点 menu bar 图标。
+// 注意:Preview 里启动 AppContainer 会走完整 init(包括 sshConfigProvider 等),
+// 对纯 UI 调整无害;真正加载 profiles / sweep 都在 .bootstrap() 里,而 preview
+// 走的是 .preview,只调 seedPreviewProfiles()。
+
+#if DEBUG
+#Preview("MenuBar — light, with profiles") {
+    MenuBarView()
+        .environment(AppContainer.preview)
+        .frame(width: 320)
+        .preferredColorScheme(.light)
+}
+
+#Preview("MenuBar — dark, with profiles") {
+    MenuBarView()
+        .environment(AppContainer.preview)
+        .frame(width: 320)
+        .preferredColorScheme(.dark)
+}
+#endif

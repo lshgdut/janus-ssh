@@ -28,12 +28,48 @@ public struct AppSettings: Codable, Equatable, Sendable {
         public var launchAtLogin: Bool
         public var showMenuBarIcon: Bool
         public var quitOnWindowClose: Bool
+        public var theme: Theme
+
+        public init(
+            launchAtLogin: Bool,
+            showMenuBarIcon: Bool,
+            quitOnWindowClose: Bool,
+            theme: Theme
+        ) {
+            self.launchAtLogin = launchAtLogin
+            self.showMenuBarIcon = showMenuBarIcon
+            self.quitOnWindowClose = quitOnWindowClose
+            self.theme = theme
+        }
 
         public static let defaults = General(
             launchAtLogin: false,
             showMenuBarIcon: true,
-            quitOnWindowClose: false
+            quitOnWindowClose: false,
+            theme: .system
         )
+
+        // 自定义解码 — 让旧 settings.json (没有 theme 字段) 也能解码,
+        // 缺字段时回退到默认值。否则旧用户升级后所有设置都被刷回 defaults。
+        enum CodingKeys: String, CodingKey {
+            case launchAtLogin, showMenuBarIcon, quitOnWindowClose, theme
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            launchAtLogin    = try c.decodeIfPresent(Bool.self,  forKey: .launchAtLogin)    ?? Self.defaults.launchAtLogin
+            showMenuBarIcon  = try c.decodeIfPresent(Bool.self,  forKey: .showMenuBarIcon)  ?? Self.defaults.showMenuBarIcon
+            quitOnWindowClose = try c.decodeIfPresent(Bool.self, forKey: .quitOnWindowClose) ?? Self.defaults.quitOnWindowClose
+            theme            = try c.decodeIfPresent(Theme.self, forKey: .theme)            ?? Self.defaults.theme
+        }
+    }
+
+    /// App 主题偏好。`.system` 跟系统外观,`.light` / `.dark` 强制覆盖 —
+    /// 包括 NSPopover 这种不走 SwiftUI Scene 的宿主(走 NSApp.appearance)。
+    public enum Theme: String, Codable, Sendable, CaseIterable {
+        case system
+        case light
+        case dark
     }
 
     public struct SSHConfig: Codable, Equatable, Sendable {

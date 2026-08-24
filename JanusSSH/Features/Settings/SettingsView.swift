@@ -30,6 +30,10 @@ struct SettingsView: View {
                                   onChange: { v in
                                       Task { await container.settingsManager.update { $0.general.quitOnWindowClose = v } }
                                   })
+                        ThemeRow(theme: settings.general.theme,
+                                 onChange: { newTheme in
+                                     Task { await container.settingsManager.update { $0.general.theme = newTheme } }
+                                 })
                     }
 
                     SettingsGroup(title: "SSH 配置", description: "应用读取的 SSH Config 路径与解析选项") {
@@ -141,6 +145,46 @@ private struct SettingsGroup<Content: View>: View {
     }
 }
 
+/// 主题切换 — SegmentedPicker 而不是下拉,因为只有 3 个选项,
+/// 一眼看全比展开菜单更省操作。`System` / `Light` / `Dark` 的语义明确,
+/// 用 system 图标辅助辨识(月亮=深、太阳=亮、自动=系统跟随)。
+private struct ThemeRow: View {
+    let theme: AppSettings.Theme
+    let onChange: (AppSettings.Theme) -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Theme").font(.body)
+                Text("跟随系统外观,或强制浅色/深色。会同时影响主窗口、菜单栏、Settings。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Picker("", selection: Binding(
+                get: { theme },
+                set: onChange
+            )) {
+                ForEach(AppSettings.Theme.allCases, id: \.self) { t in
+                    Text(label(for: t)).tag(t)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 220)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func label(for theme: AppSettings.Theme) -> String {
+        switch theme {
+        case .system: return "Auto"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+}
+
 private struct ToggleRow: View {
     let title: String
     let description: String
@@ -180,7 +224,7 @@ private struct PathRow: View {
                 .font(.system(.caption, design: .monospaced))
                 .padding(.horizontal, 8).padding(.vertical, 4)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
-            Button("Browse…") {}.buttonStyle(.bordered)
+            Button("Browse…") {}.buttonStyle(.appSecondary)
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
         .overlay(alignment: .bottom) { Divider() }
@@ -202,7 +246,7 @@ private struct ActionRow: View {
             }
             Spacer()
             Button(actionLabel, action: action)
-                .buttonStyle(.bordered)
+                .buttonStyle(.appSecondary)
                 .tint(tint)
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
@@ -213,69 +257,72 @@ private struct ActionRow: View {
 private struct DangerZoneGroup: View {
     let container: AppContainer
     @State private var showResetConfirm = false
+    @State private var resetText = ""
 
     var body: some View {
-        // ZStack 显式把背景放到所有内容之下,避免按钮自带的白色覆盖 VStack 背景
-        ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.red.opacity(0.08))
-
-            VStack(spacing: 0) {
-                // Header
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("!").font(.caption).bold()
-                            .foregroundStyle(.white).frame(width: 16, height: 16)
-                            .background(.red, in: Circle())
-                        Text("危险操作").font(.headline).foregroundStyle(.red)
-                    }
-                    Text("这些操作不可恢复,请谨慎").font(.caption).foregroundStyle(.secondary)
+        // 整体结构:外层 RoundedRectangle 给整组一个圆角边框,内部分两块 —
+        // 顶部 header 用浅红背景,下面 body 用默认白色背景。
+        VStack(spacing: 0) {
+            // Header:红色 tint 背景
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("!").font(.caption).bold()
+                        .foregroundStyle(.white).frame(width: 16, height: 16)
+                        .background(.red, in: Circle())
+                    Text("危险操作").font(.headline).foregroundStyle(.red)
                 }
-                .padding(.horizontal, 20).padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text("这些操作不可恢复,请谨慎").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.red.opacity(0.08))
 
-                Divider().background(.red.opacity(0.3))
-
+            // Body:每行都显式给白色 bg,避免透明继承导致红色 tint 渗漏
+            VStack(spacing: 0) {
                 ActionRow(title: "Stop All Tunnels",
                           description: "停止所有由本应用管理的 SSH Tunnel,然后关闭所有 SSH 进程",
                           actionLabel: "Stop All",
                           action: { Task { await container.tunnelManager.stopAll() } },
                           tint: .red)
+                .background(Color(nsColor: .windowBackgroundColor))
 
-                Divider().background(.red.opacity(0.3))
+                Divider().padding(.leading, 20)
+                    .background(Color(nsColor: .windowBackgroundColor))
 
-                Button(role: .destructive) {
-                    showResetConfirm = true
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Reset Profiles").font(.body)
-                            Text("删除全部 Profile 与本地状态,不可恢复").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("Reset…").font(.caption)
-                    }
-                }
-                .buttonStyle(.bordered).tint(.red)
-                .padding(.horizontal, 20).padding(.vertical, 10)
+                ActionRow(title: "Reset Profiles",
+                          description: "删除全部 Profile 与本地状态,不可恢复",
+                          actionLabel: "Reset…",
+                          action: { showResetConfirm = true },
+                          tint: .red)
+                .background(Color(nsColor: .windowBackgroundColor))
 
                 if showResetConfirm {
-                    Divider().background(.red.opacity(0.3))
+                    Divider().padding(.leading, 20)
+                        .background(Color(nsColor: .windowBackgroundColor))
                     HStack {
                         Text("输入 RESET 确认:").font(.caption)
-                        TextField("RESET", text: .constant(""))
+                        TextField("RESET", text: $resetText)
                             .textFieldStyle(.roundedBorder).frame(width: 120)
                         Button("Confirm") {
                             for p in container.profiles {
                                 Task { await container.deleteProfile(p.id) }
                             }
+                            resetText = ""
                             showResetConfirm = false
-                        }.buttonStyle(.borderedProminent).tint(.red)
+                        }
+                        .buttonStyle(.appPrimary).tint(.red)
+                        .disabled(resetText != "RESET")
                     }
                     .padding(20)
+                    .background(Color(nsColor: .windowBackgroundColor))
                 }
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.red.opacity(0.5)))
+        .background(.background)  // body 区为默认白色
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.red.opacity(0.5), lineWidth: 1)
+        )
     }
 }

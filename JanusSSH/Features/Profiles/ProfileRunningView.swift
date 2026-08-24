@@ -50,14 +50,14 @@ struct ProfileRunningView: View {
                     Task { try? await container.tunnelManager.restart(profileID: profile.id) }
                 } label: {
                     Label("Restart", systemImage: "arrow.clockwise")
-                }.buttonStyle(.bordered)
+                }.buttonStyle(.appSecondary)
                 Button {
                     Task { try? await container.tunnelManager.stop(profileID: profile.id) }
                 } label: {
                     Label("Stop", systemImage: "stop.fill")
-                }.buttonStyle(.bordered)
+                }.buttonStyle(.appSecondary)
                 Button { } label: { Label("Edit", systemImage: "pencil") }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.appSecondary)
             }
         }
         .padding(20)

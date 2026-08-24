@@ -66,32 +66,37 @@ private struct Toolbar: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack(alignment: .center, spacing: 16) {
-                // 左:标题 + 计数 pill
+                // 左:标题 + 计数 pill — 固定自然宽度,窗口缩窄时让搜索框先被挤压
                 HStack(spacing: 12) {
                     Text("Profiles")
                         .font(.system(.title, design: .default).weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .fixedSize(horizontal: true, vertical: false)
                     CountPill(total: container.profiles.count, running: runningCount)
                 }
+                .fixedSize(horizontal: true, vertical: false)
 
-                // 中:搜索框(自定义,匹配设计)
+                // 中:搜索框 — 唯一会缩的 element,缩到 0 也允许(用户可以靠 Cmd+F)
                 SearchField(text: $searchText,
                             placeholder: "搜索 Profile、SSH Host 或 Port")
                     .frame(maxWidth: 360)
+                    .layoutPriority(0)
 
                 Spacer(minLength: 0)
 
-                // 右:动作按钮
+                // 右:动作按钮 — 固定自然宽度,搜索框挤压时不会被 shrink
                 HStack(spacing: 8) {
                     Button("Stop All") {
                         Task { await container.tunnelManager.stopAll() }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.appSecondary)
                     .disabled(runningCount == 0)
 
                     Button("Start All") {
                         Task { try? await container.tunnelManager.startAll() }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.appSecondary)
                     .disabled(container.profiles.isEmpty || runningCount > 0)
 
                     Button {
@@ -99,8 +104,9 @@ private struct Toolbar: View {
                     } label: {
                         Label("New Profile", systemImage: "plus")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.appPrimary)
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(.horizontal, 24)
@@ -116,12 +122,12 @@ private struct Toolbar: View {
             name: "",
             sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
             forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                   remoteHost: "", remotePort: 0, label: nil)],
+                                   remoteHost: "127.0.0.1", remotePort: 0, label: nil)],
             behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
             createdAt: Date(),
             updatedAt: Date()
         )
-        container.requestEdit(profile: draft)
+        container.requestEdit(profile: draft, isNew: true)
         openWindow(id: "profile-editor")
     }
 }
@@ -140,6 +146,8 @@ private struct CountPill: View {
             Text("\(total) 个 Profile · \(running) 个运行中")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
@@ -211,7 +219,7 @@ private struct EmptyState: View {
             } label: {
                 Label("New Profile", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.appPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -221,12 +229,12 @@ private struct EmptyState: View {
             name: "",
             sshHostAlias: container.sshHostManager.hosts.first?.alias ?? "",
             forwards: [PortForward(localHost: "127.0.0.1", localPort: 0,
-                                   remoteHost: "", remotePort: 0, label: nil)],
+                                   remoteHost: "127.0.0.1", remotePort: 0, label: nil)],
             behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
             createdAt: Date(),
             updatedAt: Date()
         )
-        container.requestEdit(profile: draft)
+        container.requestEdit(profile: draft, isNew: true)
         openWindow(id: "profile-editor")
     }
 }
@@ -240,6 +248,7 @@ private struct ProfileCard: View {
     @Environment(\.openWindow) private var openWindow
     @State private var now: Date = Date()
     @State private var showDeleteConfirm: Bool = false
+    @State private var hovering = false
 
     private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -291,8 +300,13 @@ private struct ProfileCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(.separator, lineWidth: 0.5)
+                .strokeBorder(
+                    hovering ? Color.accentColor.opacity(0.35) : Color(nsColor: .separatorColor),
+                    lineWidth: hovering ? 1 : 0.5
+                )
         )
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .confirmationDialog(
             "Delete \"\(profile.name)\"?",
             isPresented: $showDeleteConfirm,
@@ -320,10 +334,12 @@ private struct ProfileCard: View {
             Text(profile.sshHostAlias)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
-            Separator()
+            // 用 dot 分隔(与全 App 其它位置一致 — MenuBar / Sidebar / CountPill 都用 `·`)
+            // 之前用 | 分隔显得跟系统其它文案不统一
+            Text("·").foregroundStyle(.tertiary)
             Text("\(profile.forwards.count) port forwards")
                 .font(.caption).foregroundStyle(.secondary)
-            Separator()
+            Text("·").foregroundStyle(.tertiary)
             uptimeOrLastStarted
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -471,12 +487,19 @@ private struct ForwardLine: View {
                 .foregroundStyle(isError ? Color.red : Color.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Spacer()
             if let label = forward.label, !label.isEmpty {
+                // 标签用小 pill,跟正向行视觉绑定更紧 — 之前裸文字太安静
                 Text(label)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule().fill(Color.secondary.opacity(0.12))
+                    )
+                    .lineLimit(1)
             }
+            Spacer(minLength: 0)
         }
     }
 }
@@ -612,3 +635,32 @@ private struct CardMenu: View {
         .help("Edit or delete this profile")
     }
 }
+// MARK: - Previews
+// Xcode canvas 直接渲染 ProfileListView,改卡片 / hover / 按钮样式立刻看到反馈。
+// AppContainer.preview 已经塞了 Production (running 2h) / Staging (running 1h) /
+// Private Server (error unreachable) 三种状态,覆盖 ProfileCard 全视觉。
+
+#if DEBUG
+#Preview("ProfileList — populated") {
+    ProfileListView()
+        .environment(AppContainer.preview)
+        .frame(width: 900, height: 700)
+}
+
+#Preview("ProfileList — empty") {
+    // 空状态单独预览 — 用一个没有任何 profile 的 container
+    EmptyPreviewContainer()
+}
+#endif
+
+#if DEBUG
+/// 空状态 preview — 直接给一个空 container
+private struct EmptyPreviewContainer: View {
+    @State private var container = AppContainer()
+    var body: some View {
+        ProfileListView()
+            .environment(container)
+            .frame(width: 900, height: 700)
+    }
+}
+#endif

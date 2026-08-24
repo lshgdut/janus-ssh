@@ -17,6 +17,7 @@
 		2E4C4E1E2B62282F646EB4DE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000E7C54DD782015431D1219 /* SettingsView.swift */; };
 		31CEB2F734D72D41A5D177CE /* ProfileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */; };
 		525EF0420538B65C7488E91C /* AppLifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */; };
+		525EF0420538B65C7488E91E /* ThemeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF8E7CC625AC5F03E2E7A1B /* ThemeController.swift */; };
 		54DA3771C994CD78D13C8CAE /* TunnelLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */; };
 		581D927C599A41DB8EED1512 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C7792BB92E092F9CB90715 /* SidebarView.swift */; };
 		75B8CAD57E29685459FDA358 /* ProfileRunningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */; };
@@ -58,6 +59,7 @@
 		B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonStyles.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleManager.swift; sourceTree = "<group>"; };
+		CFF8E7CC625AC5F03E2E7A1B /* ThemeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeController.swift; sourceTree = "<group>"; };
 		E4072D1F7644686574CF00A9 /* SSHHostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostListView.swift; sourceTree = "<group>"; };
 		EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHostManager.swift; sourceTree = "<group>"; };
 		F5BF48AA40CAD7891EB709FC /* JanusSSH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JanusSSH.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,6 +108,7 @@
 				1397F81873971FF1B1FB6A06 /* NotificationManager.swift */,
 				EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */,
 				9482A684D424C97D09E03615 /* SettingsManager.swift */,
+				CFF8E7CC625AC5F03E2E7A1B /* ThemeController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -294,6 +297,7 @@
 				873FFD3E4A215FC97224DDBF /* NotificationManager.swift in Sources */,
 				B2BB224B7082EA7C73CB5BC8 /* SSHHostManager.swift in Sources */,
 				D5E806ECBD7133C2A1C3F65E /* SettingsManager.swift in Sources */,
+				525EF0420538B65C7488E91E /* ThemeController.swift in Sources */,
 				D0F2F68A95B3C045FBED5C5A /* RootView.swift in Sources */,
 				581D927C599A41DB8EED1512 /* SidebarView.swift in Sources */,
 				0FE61473E8CEE2B2BEF90785 /* ProfileEditorView.swift in Sources */,

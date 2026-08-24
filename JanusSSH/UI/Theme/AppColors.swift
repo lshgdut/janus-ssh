@@ -10,8 +10,11 @@ import JanusSSHTunnelEngine
 /// chosen accent color when a tunnel is healthy. The other five states
 /// use stable semantic colors that don't shift with the system theme.
 enum AppStatusColor {
-    /// Tunnel is running normally — uses the user's accent color.
-    static let connected: Color = .accentColor
+    /// Tunnel is running normally — dedicated vivid green so the breathing
+    /// halo holds saturation when scaled/faded on dark surfaces.
+    /// (Previously inherited `.accentColor`, which on most systems is blue
+    /// and washed out to gray once the halo opacity dropped.)
+    static let connected: Color = Color(red: 0.20, green: 0.82, blue: 0.38)
 
     /// Tunnel is starting up.
     static let connecting: Color = .orange
