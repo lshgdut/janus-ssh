@@ -202,7 +202,7 @@ final class MenuBarController {
             removeOutsideClickMonitor()
             return
         }
-        let p = NSPopover()
+        let p = AutoKeyPopover()
         // .applicationDefined:我们自己处理 dismiss。.transient 在 NSPopover +
         // NSHostingController 组合下偶尔不响应外部点击(尤其点主窗口),
         // 表现就是菜单"不隐藏",连带 Quit 也没反应(popover 残留把 willTerminate
@@ -292,10 +292,48 @@ final class MenuBarController {
 /// viewDidAppear,我们在子类里 view 一出现在 AppKit 派发任何鼠标事件之前调
 /// `window?.makeKey()`,把 popover 锁到 key 状态,后续 button 第一次点击直接走
 /// normal target/action,不再被 promotion 抢先消耗。
+/// Subclass NSHostingController — viewDidAppear 强制 makeKey(belt-and-suspenders)。
+///
+/// SwiftUI hosting controller 在某些 macOS 版本下 viewDidAppear 触发时点已经在
+/// NSHostingController 上,primary fix 已经走 AutoKeyPopover.show()(见下),
+/// 这里再追加一道兜底,确保 popover window 在任何路径下都能进 key state。
 private final class KeyableHostingController<Content: View>: NSHostingController<Content> {
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeKey()
+    }
+}
+
+/// NSPopover subclass — show() 后立刻调度 makeKey 进 key state,绕过 `.applicationDefined`
+/// 默认不会抢占 key 的问题。
+///
+/// 为什么 viewDidAppear 兜底还不够:`.applicationDefined` NSPopover 用的 NSPanel 默认
+/// `becomesKeyOnlyOnUserAction = true`(Swift 没暴露这个属性),popover 上场时
+/// `isKeyWindow == false`。第一次 mouseDown 落在 popover 内 button 上时,AppKit 把那次
+/// 点击用做 key-window promotion,按钮 action 不触发 — 表现就是 "Settings/Quit 要点
+/// 两下才生效",而在某些 macOS 版本下 NSHostingController.viewDidAppear 时机晚于用户
+/// 第一次点击能看到的事件,完全错过拦截窗口。
+///
+/// 修法:AutoKeyPopover 覆盖两条 show() 入口,super.show() 后 `DispatchQueue.main.async`
+/// 强制把 contentViewController 的 window makeKey — 这时 popover 的 NSPanel 已经
+/// 完整 wiring,view.window 不为 nil,makeKey 立刻升 key,后续 button 第一次点击直接
+/// 走 normal target/action,不再被 promotion 抢先消耗。
+private final class AutoKeyPopover: NSPopover {
+    override func show(relativeTo positioningRect: NSRect, of positioningView: NSView, preferredEdge: NSRectEdge) {
+        super.show(relativeTo: positioningRect, of: positioningView, preferredEdge: preferredEdge)
+        makeKeyOnNextRunloop()
+    }
+
+    /// 把 makeKey 调度到下一个 main runloop tick — 这时 popover 内部 NSPanel 已经
+    /// wire 完整,contentViewController?.view.window 不再是 nil。
+    private func makeKeyOnNextRunloop() {
+        // 显式捕获 popover 引用 — popover 的生命周期被 MenuBarController.popover 持有,
+        // 当外面被替换 / 关闭,这里 closure 不会再被调用(下次 click 是新 popover 实例)。
+        let popoverRef = self
+        DispatchQueue.main.async {
+            // popover 关掉时 view.window 会被 AppKit 置 nil,这是正常情况,不报错。
+            popoverRef.contentViewController?.view.window?.makeKey()
+        }
     }
 }
 // MARK: - AppWindowFocus
