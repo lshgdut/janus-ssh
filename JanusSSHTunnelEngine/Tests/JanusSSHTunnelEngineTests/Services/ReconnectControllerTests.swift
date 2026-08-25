@@ -8,18 +8,26 @@ final class ReconnectControllerTests: XCTestCase {
             initialDelayMs: 100, multiplier: 2.0, maxDelayMs: 500, maxAttempts: nil
         ))
 
-        var retryCount = 0
+        // 之前用 `var retryCount` 在 @Sendable closure 里 mutate — Swift 6
+        // 拒绝,改成跟 `test_max_attempts_respected` 一样的 Counter actor。
+        actor Counter {
+            var count = 0
+            func increment() { count += 1 }
+            func value() -> Int { count }
+        }
+        let counter = Counter()
         let onRetry: @Sendable () async -> Void = {
-            retryCount += 1
+            await counter.increment()
         }
 
-        controller.schedule(profileID: UUID(), onRetry: onRetry)
+        await controller.schedule(profileID: UUID(), onRetry: onRetry)
         // 立即取消 — 第一次重试都不应该发生
-        controller.cancel(profileID: UUID())  // 不同的 ID,不影响
-        controller.cancelAll()
+        await controller.cancel(profileID: UUID())  // 不同的 ID,不影响
+        await controller.cancelAll()
 
         // 给一点时间确保没有重试发生
         try? await Task.sleep(nanoseconds: 300_000_000)
+        let retryCount = await counter.value()
         XCTAssertEqual(retryCount, 0)
     }
 
@@ -41,7 +49,7 @@ final class ReconnectControllerTests: XCTestCase {
         }
 
         let id = UUID()
-        controller.schedule(profileID: id, onRetry: onRetry)
+        await controller.schedule(profileID: id, onRetry: onRetry)
 
         // 给充足时间让所有尝试发生
         try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -54,7 +62,8 @@ final class ReconnectControllerTests: XCTestCase {
     func test_current_attempt_starts_at_zero() async {
         let controller = ReconnectController()
         let id = UUID()
-        XCTAssertEqual(controller.currentAttempt(profileID: id), 0)
+        let attempt = await controller.currentAttempt(profileID: id)
+        XCTAssertEqual(attempt, 0)
     }
 
     func test_backoff_delays_follow_policy() async {
@@ -66,19 +75,25 @@ final class ReconnectControllerTests: XCTestCase {
         // 通过 schedule 一个快速 policy 然后观察实际延迟(间接验证)
 
         let controller = ReconnectController(policy: policy)
-        var timestamps: [Date] = []
-
+        // `var timestamps` 在 @Sendable closure 里 mutate 被 Swift 6 拒绝,
+        // 跟 test_cancel_does_not_retry 一样改 Actor 收敛。
+        actor Bucket {
+            var timestamps: [Date] = []
+            func record(_ t: Date) { timestamps.append(t) }
+        }
+        let bucket = Bucket()
         let onRetry: @Sendable () async -> Void = {
-            timestamps.append(Date())
+            await bucket.record(Date())
         }
 
         // 用快速 policy 模拟,以便测试快速跑完
         let fastPolicy = BackoffPolicy(
             initialDelayMs: 100, multiplier: 2.0, maxDelayMs: 400, maxAttempts: 3
         )
-        controller.schedule(profileID: UUID(), policy: fastPolicy, onRetry: onRetry)
+        await controller.schedule(profileID: UUID(), policy: fastPolicy, onRetry: onRetry)
         try? await Task.sleep(nanoseconds: 2_000_000_000)
-        controller.cancelAll()
+        await controller.cancelAll()
+        let timestamps = await bucket.timestamps
 
         XCTAssertGreaterThan(timestamps.count, 1, "should have retried at least twice")
 

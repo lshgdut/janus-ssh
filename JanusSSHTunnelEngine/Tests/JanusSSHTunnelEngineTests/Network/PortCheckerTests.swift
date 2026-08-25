@@ -9,7 +9,7 @@ final class PortCheckerTests: XCTestCase {
     func test_port_checker_protocol_can_be_mocked() async {
         // Protocol 抽象层 — 验证 mock 能正常工作
         let mock = MockPortChecker()
-        mock.setAvailable(true, for: 15432)
+        await mock.setAvailable(true, for: 15432)
 
         let port = 15432
         let available = await mock.isPortAvailable(host: "127.0.0.1", port: UInt16(port))
@@ -18,7 +18,7 @@ final class PortCheckerTests: XCTestCase {
 
     func test_mock_reports_unavailable_when_set() async {
         let mock = MockPortChecker()
-        mock.setAvailable(false, for: 8080)
+        await mock.setAvailable(false, for: 8080)
 
         let available = await mock.isPortAvailable(host: "127.0.0.1", port: 8080)
         XCTAssertFalse(available)
@@ -27,26 +27,24 @@ final class PortCheckerTests: XCTestCase {
     func test_default_mock_treats_all_ports_available() async {
         let mock = MockPortChecker()
         let a = await mock.isPortAvailable(host: "127.0.0.1", port: 12345)
-        let b = await mock.isPortAvailable(host: "127.0.0.1", port: 67890)
+        let b = await mock.isPortAvailable(host: "127.0.0.1", port: 12346)
         XCTAssertTrue(a)
         XCTAssertTrue(b)
     }
 }
 
-/// 测试用 mock PortChecker
-final class MockPortChecker: PortChecking, @unchecked Sendable {
+/// 测试用 mock PortChecker。
+/// 之前用 NSLock 守护 map,但 Swift 6 在 async context 调 `lock.lock()` 报
+/// "instance method 'lock' is unavailable from asynchronous contexts"。
+/// 改 actor — Sendable / 并发安全 / 跟 PortChecking 协议天然契合。
+actor MockPortChecker: PortChecking {
     private var map: [UInt16: Bool] = [:]
-    private let lock = NSLock()
 
     func setAvailable(_ available: Bool, for port: UInt16) {
-        lock.lock()
-        defer { lock.unlock() }
         map[port] = available
     }
 
-    func isPortAvailable(host: String, port: UInt16) async -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return map[port] ?? true  // 默认可用
+    func isPortAvailable(host: String, port: UInt16) -> Bool {
+        map[port] ?? true  // 默认可用
     }
 }

@@ -9,8 +9,8 @@ final class TunnelLogStoreTests: XCTestCase {
         let store = TunnelLogStore()
         let profileID = UUID()
 
-        await store.append(profileID: profileID, .info("hello"))
-        await store.append(profileID: profileID, .error("world"))
+        await store.append(profileID: profileID, kind: .stdout, message: "hello")
+        await store.append(profileID: profileID, kind: .stderr, message: "world", level: .error)
 
         let snapshot = await store.snapshot(profileID: profileID)
         XCTAssertEqual(snapshot.count, 2)
@@ -24,7 +24,7 @@ final class TunnelLogStoreTests: XCTestCase {
 
         // 添加 1500 条,只保留最后 1000
         for i in 0..<1500 {
-            await store.append(profileID: profileID, .info("line-\(i)"))
+            await store.append(profileID: profileID, kind: .stdout, message: "line-\(i)")
         }
 
         let snapshot = await store.snapshot(profileID: profileID)
@@ -49,9 +49,9 @@ final class TunnelLogStoreTests: XCTestCase {
         // 异步追加,确保订阅者有机会注册
         Task {
             try? await Task.sleep(nanoseconds: 50_000_000)
-            await store.append(profileID: profileID, .info("first"))
+            await store.append(profileID: profileID, kind: .stdout, message: "first")
             try? await Task.sleep(nanoseconds: 50_000_000)
-            await store.append(profileID: profileID, .info("second"))
+            await store.append(profileID: profileID, kind: .stdout, message: "second")
         }
 
         let received = await receivedTask.value
@@ -64,7 +64,7 @@ final class TunnelLogStoreTests: XCTestCase {
         let store = TunnelLogStore()
         let profileID = UUID()
 
-        await store.append(profileID: profileID, .info("x"))
+        await store.append(profileID: profileID, kind: .stdout, message: "x")
         await store.clear(profileID: profileID)
 
         let snapshot = await store.snapshot(profileID: profileID)

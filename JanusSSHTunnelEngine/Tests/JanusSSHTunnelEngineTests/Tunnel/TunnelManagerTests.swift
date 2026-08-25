@@ -5,6 +5,8 @@ import XCTest
 ///
 /// 测试策略:用 FakeSSHProcessManager 替换真实 SSHProcessManager,
 /// 验证状态机转换、Start/Stop/Restart 语义、Start All/Stop All。
+/// TunnelManager 是 @MainActor,test method 也需在 MainActor 上跑才能访问。
+@MainActor
 final class TunnelManagerTests: XCTestCase {
 
     // MARK: - State transitions
@@ -113,6 +115,45 @@ final class TunnelManagerTests: XCTestCase {
         XCTAssertEqual(terminates.count, 2)
     }
 
+    /// 回归:`stopAll()` 之前漏标 `userRequestedStop`,SIGKILL 后 .terminated 事件
+    /// 被 `handleProcessExit` 当成"进程自然死",状态错置 `.error`,profile 设了
+    /// autoReconnect 会触发重连,导致 "Stop All → 一会状态又跑起来 → Stop 没反应"。
+    /// 修法:stopAll 在调用 terminateAll 之前先 mark,终止后显式置 .stopped。
+    /// 此测试断言:`stopAll` 后即使是 autoReconnect profile,state 也应该是 .stopped,
+    /// 不进 .error / .reconnecting。
+    ///
+    /// 注:`start()` 在 Fake 环境里其实跑不通(校验 / portChecker / SSH command build
+    /// 这几关有个 pre-existing 的失败 — 见 `test_start_transitions_to_starting_...`
+    /// 同样定位 `.error`)。绕路:用 DEBUG-only 的 `_previewSetState` 直接把 tunnel
+    /// 压到 .running,跳过 start 链路,专注测 stopAll 的状态收尾。
+    func test_stop_all_does_not_trigger_autoreconnect_when_profiles_have_autoReconnect() async throws {
+        let (mgr, _) = makeManager()
+        let p1 = makeProfile(name: "A", alias: "a")  // 默认 autoReconnect=true
+        mgr.registerProfile(p1)
+        // 人工注入 running 态,绕开 start() 在 Fake 环境里 pre-existing 的失败
+        mgr._previewSetState(
+            profileID: p1.id,
+            state: .running,
+            startedAt: Date(),
+            stoppedAt: nil,
+            lastError: nil
+        )
+
+        try await mgr.stopAll()
+
+        // 终止后:tunnel 应该是 .stopped,而不是 .error / .reconnecting / .running
+        let after = mgr.tunnel(for: p1.id)?.state
+        XCTAssertEqual(
+            after, .stopped,
+            "Stop All 后 state 应该是 .stopped,实际是 \(String(describing: after))。"
+            + "若 .error 或 .reconnecting / .running,说明 stopAll 漏标"
+            + " userRequestedStop,被 SIGKILL 后 handleProcessExit 误触发 autoReconnect"
+        )
+
+        // pid 应当清空
+        XCTAssertNil(mgr.tunnel(for: p1.id)?.pid)
+    }
+
     // MARK: - Helpers
 
     private func makeManager() -> (TunnelManager, FakeSSHProcessManager) {
@@ -165,6 +206,13 @@ final actor FakeSSHProcessManager: SSHProcessManaging {
 
     func handle(for profileID: UUID) async -> SSHProcessHandle? {
         return FakeSSHProcessHandle()
+    }
+
+    // 同步发完信号 — 跟真实 SSHProcessManager.terminateAllNow() 同语义。
+// 测试不真正用它(App willTerminate 路径),无操作就够,避开 actor-isolated
+// state 访问问题。
+    nonisolated func terminateAllNow() {
+        // 测试 stub — 不会在 actor-isolated context 访问 launches / terminates
     }
 }
 

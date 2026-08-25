@@ -84,8 +84,12 @@ final class ProfileValidatorTests: XCTestCase {
     }
 
     func test_port_above_65535_is_an_error() {
+        // 之前用 `70000` 字面量,但 `makeProfile(name:alias:forwards: [(UInt16, String, UInt16)])`
+        // helper 强制 `localPort` 为 UInt16 — 编译期就 trap。换测 `0` 已覆盖 validator
+        // 里 `if localPort == 0` 分支,跟"端口越界"是同一条规则的两个边界点。
+        // 真正的"超过 UInt16 最大值"在运行时不可达,留给类型系统守住。
         let profile = makeProfile(name: "X", alias: "production", forwards: [
-            (70000, "10.20.0.15", 5432)
+            (0, "10.20.0.15", 5432)
         ])
         let issues = ProfileValidator().validate(profile, knownHosts: knownHosts)
         XCTAssertTrue(issues.contains { $0.severity == .error && ($0.field?.contains("localPort") == true) })

@@ -15,7 +15,7 @@ final class ProfileTests: XCTestCase {
                 PortForward(localHost: "127.0.0.1", localPort: 16379,
                             remoteHost: "10.20.0.16", remotePort: 6379, label: "redis")
             ],
-            behavior: Behavior(enabled: true, autoReconnect: true, autoStart: true),
+            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: true),
             createdAt: Date(timeIntervalSince1970: 1_700_000_000),
             updatedAt: Date(timeIntervalSince1970: 1_700_000_500)
         )
@@ -65,7 +65,7 @@ final class ProfileTests: XCTestCase {
                 PortForward(localHost: "127.0.0.1", localPort: 15432,
                             remoteHost: "10.20.0.15", remotePort: 5432, label: nil)
             ],
-            behavior: Behavior(enabled: true, autoReconnect: true, autoStart: false),
+            behavior: Profile.Behavior(enabled: true, autoReconnect: true, autoStart: false),
             createdAt: Date(),
             updatedAt: Date()
         )
