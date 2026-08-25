@@ -97,6 +97,14 @@ public final class TunnelManager {
             return
         }
 
+        // Defense-in-depth:清掉上次 stop() 漏清的 userRequestedStop 残留。
+        // 路径是 stop() 在 observation 任务没发出 .terminated 时(进程在外部
+        // 被杀 / 进程 spawn 后立刻退出 / Fake 环境等)无法清除 Set 条目,
+        // 下次 start() 后新 SSH 退出时 handleProcessExit's early-return 命中
+        // 这个 stale entry,会把新 exit 的 .terminated 吞掉,tunnel 状态卡在
+        // .running 但实际 SSH 已死。在 start 入口显式清掉,不依赖任何路径。
+        userRequestedStop.remove(profileID)
+
         // 校验 — 用 sshConfigProvider 拿真实 knownHosts
         // 之前传 knownHosts: [] 会导致 sshHostAlias 检查永远失败
         let knownHosts = await currentKnownHosts()
@@ -383,22 +391,37 @@ public final class TunnelManager {
         }
 
         let success = (code == 0)
-        updateTunnel(id: profileID) { t in
-            t.state = success ? .stopped : .error
-            t.stoppedAt = Date()
-            t.pid = nil
-            if !success {
-                t.lastError = .sshExited(code: code, signal: nil, reason: .processExited)
-            } else {
-                t.lastError = nil
+        // 如果 stop() 已经把这个 tunnel 收尾到 .stopped(常见路径),
+        // .terminated 是异步延迟到的副作用 — 不要用它把 state 再翻回 .error
+        // 触发 autoReconnect。Stop→Start 之间 userRequestedStop 残留也可能
+        // 把这里 early-return 透掉(start() 入口已经防御一次,但这里再做一次
+        // 状态层面的 guard,处理 userRequestedStop 已被观察任务清掉的场景)。
+        let alreadyFinalized = (tunnels[profileID]?.state == .stopped)
+        if !alreadyFinalized {
+            updateTunnel(id: profileID) { t in
+                t.state = success ? .stopped : .error
+                t.stoppedAt = Date()
+                t.pid = nil
+                if !success {
+                    t.lastError = .sshExited(code: code, signal: nil, reason: .processExited)
+                } else {
+                    t.lastError = nil
+                }
             }
+            await logStore.append(profileID: profileID, kind: .app,
+                                  message: "SSH exited with code \(code) (\(reason))",
+                                  level: success ? .info : .error)
         }
-        await logStore.append(profileID: profileID, kind: .app,
-                              message: "SSH exited with code \(code) (\(reason))",
-                              level: success ? .info : .error)
 
         // Auto Reconnect:仅当 (1) 异常退出 (2) Profile 配置了 autoReconnect
+        // (3) tunnel 当前不是 stop / stopping(用户主动停后不该再重连)。
         if !success && reason == .exited {
+            let current = tunnels[profileID]?.state
+            if current != .running && current != .starting && current != .reconnecting {
+                // 已收尾到 .stopped / .error — 不再触发新 schedule,
+                // 避免上面 alreadyFinalized 分支之外的小窗口也被 autoReconnect 抢走。
+                return
+            }
             let profile = profiles[profileID]
             if profile?.behavior.autoReconnect == true {
                 updateTunnel(id: profileID) { $0.state = .reconnecting }
