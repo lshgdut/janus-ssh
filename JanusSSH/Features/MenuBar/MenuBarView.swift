@@ -130,6 +130,9 @@ struct MenuBarView: View {
                     NSApp.activate(ignoringOtherApps: true)
                     AppWindowFocus.focusMain()
                 }
+                // 焦点切到主窗口 — popover 不再有用,主动 dismiss 避免屏幕上
+                // 短暂同时有 menu + main 两个窗口。
+                container.menuBarController.dismissPopover()
             }
             // 用 \.openSettings — 之前 NSApp.sendAction(showSettingsWindow:)
             // 从 MenuBarExtra 触发不稳定。
