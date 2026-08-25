@@ -2,7 +2,7 @@
 # scripts/release.sh — 构建 + 签名 + 公证 + DMG
 set -e
 
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.1.1}"
 APP_NAME="JanusSSH"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build"
@@ -10,32 +10,86 @@ BUILD_DIR="$ROOT/build"
 echo "==> Building $APP_NAME $VERSION..."
 
 # 1. Build Release
+# 默认 ad-hoc signing(-身份,无需 Developer ID),让本机 / CI 都能跑通。
+# 真发布时 export 三个 env 覆盖:
+#   CODE_SIGN_IDENTITY="Developer ID Application: Your Name" \
+#   CODE_SIGN_STYLE=Manual \
+#   DEVELOPMENT_TEAM="YOUR_TEAM_ID" \
+#   KEYCHAIN_PROFILE="JanusSSH-Notarize" \
+#   ./scripts/release.sh 0.2.0
+CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:--}"
+CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Manual}"
+DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-}"
+SIGN_FLAGS=()
+SIGN_FLAGS+=(CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY")
+SIGN_FLAGS+=(CODE_SIGN_STYLE="$CODE_SIGN_STYLE")
+if [ -n "$DEVELOPMENT_TEAM" ]; then
+  SIGN_FLAGS+=(DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM")
+fi
+
 xcodebuild \
-  -project "$ROOT/JanusSSH.xcodeproj" \
+  -project "$ROOT/JanusSSH/JanusSSH.xcodeproj" \
   -scheme "$APP_NAME" \
   -configuration Release \
   -derivedDataPath "$BUILD_DIR" \
-  CODE_SIGN_IDENTITY="Developer ID Application: Joe" \
-  CODE_SIGN_STYLE=Manual \
-  DEVELOPMENT_TEAM="YOUR_TEAM_ID" \
+  "${SIGN_FLAGS[@]}" \
   clean build
 
 echo "==> Locating built .app..."
 APP_PATH=$(find "$BUILD_DIR" -name "$APP_NAME.app" -type d | head -1)
 
 # 2. Zip
+# 1.5 Embed Swift Package frameworks into the .app
+# xcodebuild 把 Swift Package 的 .framework 产物放在
+#   Build/Products/Release/PackageFrameworks/<Name>.framework
+# 但这个项目缺一个 "Embed Frameworks" build phase,所以 .app 里
+# Contents/Frameworks/ 是空的。主 binary 的 rpath 是
+#   @executable_path/../Frameworks
+# 直接装到 /Applications 后 dyld 会找不到 framework,所有跨模块符号
+# (例如 TunnelManager.init)都报 "Symbol missing",App 一启动就崩。
+# 这里手动把 framework 拷进 .app/Contents/Frameworks/ 并重新签名,
+# 让 .app 自包含、可以脱离打包机分发。
+# 用 ditto 而不是 cp -R,保留 xattrs + codesign 签名。
+FRAMEWORKS_SRC="$BUILD_DIR/Build/Products/Release/PackageFrameworks"
+if [ -d "$FRAMEWORKS_SRC" ]; then
+  echo "==> Embedding Swift Package frameworks..."
+  mkdir -p "$APP_PATH/Contents/Frameworks"
+  for fw in "$FRAMEWORKS_SRC"/*.framework; do
+    [ -d "$fw" ] || continue
+    base="$(basename "$fw")"
+    echo "    - $base"
+    ditto "$fw" "$APP_PATH/Contents/Frameworks/$base"
+    # Embedded framework 必须跟主 app 用同一签名身份 — xcodebuild 在
+    # Release + EnablePreviews 下不会自动重签嵌入产物,这里手动补。
+    # Developer ID Application 形式跟 xcodebuild 同名即可。
+    if [ -n "${CODE_SIGN_IDENTITY:-}" ] && [ "${CODE_SIGN_IDENTITY}" != "-" ]; then
+      codesign --force --sign "$CODE_SIGN_IDENTITY" \
+        --options runtime --timestamp=none \
+        "$APP_PATH/Contents/Frameworks/$base" 2>/dev/null || true
+    fi
+  done
+fi
+
 echo "==> Zipping..."
 cd "$BUILD_DIR"
 ditto -c -k --sequesterRsrc --keepParent "$(basename $APP_PATH)" "$APP_NAME-$VERSION.zip"
 
-# 3. Notarize
-echo "==> Submitting for notarization..."
-xcrun notarytool submit "$APP_NAME-$VERSION.zip" \
-  --keychain-profile "JanusSSH-Notarize" \
-  --wait
+# 3. Notarize — 只在 KEYCHAIN_PROFILE 已设置时跑。
+# 默认(ad-hoc 本地构建)跳过 — 没有 Apple notary 凭据,且 ad-hoc 产物也
+# 本来就需要 notarization 才能分发给用户。真发布前 export KEYCHAIN_PROFILE
+# 即可激活这条路径。
+if [ -n "${KEYCHAIN_PROFILE:-}" ]; then
+  echo "==> Submitting for notarization (profile: $KEYCHAIN_PROFILE)..."
+  xcrun notarytool submit "$APP_NAME-$VERSION.zip" \
+    --keychain-profile "$KEYCHAIN_PROFILE" \
+    --wait
 
-# 4. Staple
-xcrun stapler staple "$APP_PATH"
+  # 4. Staple
+  echo "==> Stapling notarization ticket..."
+  xcrun stapler staple "$APP_PATH"
+else
+  echo "==> Skipping notarization (KEYCHAIN_PROFILE not set; ad-hoc local build)"
+fi
 
 # 5. DMG
 echo "==> Building DMG..."
