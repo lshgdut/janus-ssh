@@ -95,11 +95,12 @@ final class MenuBarController {
     private var visibilityTask: Task<Void, Never>?
     private var popover: NSPopover?
     private var outsideClickMonitor: Any?
-    /// 跳过 monitor 下一个 mouseDown — 用户点 menu bar icon 打开 popover 那条
-    /// mouseDown 也会被 NSEvent.addLocalMonitorForEvents 截到,event.window 是
-    /// NSStatusBarWindow(不是 popover),会被误判成"outside click"立刻关掉
-    /// popover。设立这个 flag:open 完 popover 后让下一条 mouseDown pass-through。
-    private var swallowNextMouseDownForOpen: UInt8 = 0
+    /// Popover 刚开 ~300ms 的"burst 窗口":打开过程中 AppKit 会陆续派发多个
+    /// mouse/mouseDown events(开 click 的尾巴 + view appearance + swiftui 内部
+    /// gesture resolve),这些 event.window 通常是 NSStatusBarWindow 而非 popover,
+    /// 走 outside branch 会立刻 performClose。用 **时间窗口** 吞掉整个 burst,
+    /// 比 swallow 一条更稳 — 即便 burst 是 N 条 events。
+    private var swallowOutsideClickUntil: Date?
 
     init(container: AppContainer) {
         self.container = container
@@ -117,6 +118,18 @@ final class MenuBarController {
         }
         self.popover = nil
         NSApp.terminate(nil)
+    }
+
+    /// 关 popover 但不 terminate App — 给 Settings / Refresh SSH Config 这种动作
+    /// 用 — 触发后让 popover 收掉,把焦点让给刚打开的新窗口。手动 dismiss 而不是
+    /// 靠 outsideClickMonitor 是因为这些 action 是 popover 内按钮触发,monitor
+    /// 不会看到它们。
+    func dismissPopover() {
+        removeOutsideClickMonitor()
+        if let popover = popover {
+            popover.performClose(nil)
+            self.popover = nil
+        }
     }
 
     deinit {
@@ -247,10 +260,11 @@ final class MenuBarController {
         self.popover = p
         installOutsideClickMonitor()
         debugLog("menu-bar: p.show(...) called, statusItem screen=\(button.window?.screen?.localizedName ?? "nil")")
-        // 标记 swallow 旗,让 outsideClickMonitor 下一条 mouseDown pass-through —
-        // 否则 AppKit 把打开 popover 那条 click 派给 status item window → 我们的
-        // monitor 看到 event.window !== popoverWindow,误判 outside 立刻关掉。
-        swallowNextMouseDownForOpen = 1
+        // 时间窗口 swallow:开 popover 后 ~300ms 内 monitor 一律 pass-through,
+        // 避开"开 click 尾巴 + view 渲染 + SwiftUI gesture resolve"陆续到达
+        // 的 burst 都被误判成 outside click 立刻关掉 popover。详情见 monitor
+        // 注释。
+        swallowOutsideClickUntil = Date().addingTimeInterval(0.3)
         p.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
@@ -277,10 +291,9 @@ final class MenuBarController {
             else {
                 return event
             }
-            // 打开 popover 的那条 mouseDown 会一起 reach 过来 — 让它先过去
-            if self.swallowNextMouseDownForOpen > 0 {
-                self.swallowNextMouseDownForOpen = 0
-                debugLog("outsideClickMonitor: swallow flag — pass-through open click (event.window=\(String(describing: event.window)))")
+            // burst 窗口内一律 pass-through — 见 swallowOutsideClickUntil 设置处注释。
+            if let until = self.swallowOutsideClickUntil, Date() < until {
+                debugLog("outsideClickMonitor: burst window pass-through (event.window=\(String(describing: event.window)))")
                 return event
             }
             // event.window === popoverWindow → 点在 popover 内,放过

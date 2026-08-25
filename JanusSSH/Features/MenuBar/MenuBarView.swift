@@ -136,11 +136,19 @@ struct MenuBarView: View {
             MenuBarItem(label: "Settings…", shortcut: "⌘,") {
                 debugLog("MenuBar action: Settings fired")
                 openSettings()
+                // openSettings 立即触发 SwiftUI Window scene,但 SettingsWindow
+                // 实际浮现有一拍延迟。这里主动 dismiss popover,避免屏幕上短暂
+                // 同时有两个 menu / settings 浮窗,以及 popover 残留把后续事件
+                // 抢走的情况。
+                container.menuBarController.dismissPopover()
                 NSApp.activate(ignoringOtherApps: true)
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
                 debugLog("MenuBar action: Refresh SSH Config fired")
                 Task { await container.sshHostManager.refresh() }
+                // 刷新是后台操作,用户大概率想看到反馈 — 关掉 popover 让主窗口
+                // 顶上来显示刷新的 hosts。
+                container.menuBarController.dismissPopover()
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
