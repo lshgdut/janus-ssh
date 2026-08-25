@@ -71,8 +71,10 @@ if [ -d "$FRAMEWORKS_SRC" ]; then
 fi
 
 echo "==> Zipping..."
-cd "$BUILD_DIR"
-ditto -c -k --sequesterRsrc --keepParent "$(basename $APP_PATH)" "$APP_NAME-$VERSION.zip"
+# 用绝对路径,$APP_PATH 已经是 find 拿到的完整路径 — 之前 cd $BUILD_DIR + basename
+# 会拼成 "<build>/JanusSSH.app",但 .app 实际在
+# "<build>/Build/Products/Release/JanusSSH.app",ditto 报 "Cannot get real path"。
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$BUILD_DIR/$APP_NAME-$VERSION.zip"
 
 # 3. Notarize — 只在 KEYCHAIN_PROFILE 已设置时跑。
 # 默认(ad-hoc 本地构建)跳过 — 没有 Apple notary 凭据,且 ad-hoc 产物也
@@ -80,7 +82,7 @@ ditto -c -k --sequesterRsrc --keepParent "$(basename $APP_PATH)" "$APP_NAME-$VER
 # 即可激活这条路径。
 if [ -n "${KEYCHAIN_PROFILE:-}" ]; then
   echo "==> Submitting for notarization (profile: $KEYCHAIN_PROFILE)..."
-  xcrun notarytool submit "$APP_NAME-$VERSION.zip" \
+  xcrun notarytool submit "$BUILD_DIR/$APP_NAME-$VERSION.zip" \
     --keychain-profile "$KEYCHAIN_PROFILE" \
     --wait
 
