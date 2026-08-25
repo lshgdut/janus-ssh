@@ -126,6 +126,9 @@ final class MenuBarController {
     /// 不会看到它们。
     func dismissPopover() {
         removeOutsideClickMonitor()
+        // 三件套(monitor + popover + burst timer)同步清 — 不留 stale Date,
+        // 否则未来读 swallowOutsideClickUntil 做 gating 的代码会拿到旧值。
+        swallowOutsideClickUntil = nil
         if let popover = popover {
             popover.performClose(nil)
             self.popover = nil
@@ -209,6 +212,8 @@ final class MenuBarController {
             if !visible {
                 popover?.performClose(nil)
                 removeOutsideClickMonitor()
+                // 跟 dismissPopover 同样的对称清理。
+                swallowOutsideClickUntil = nil
             }
         }
     }
@@ -277,14 +282,28 @@ final class MenuBarController {
     private func installOutsideClickMonitor() {
         // 已存在就先拆,避免重复挂
         removeOutsideClickMonitor()
+        // 之前 matching 只 [.leftMouseDown, .rightMouseDown] — Escape 不收。改用
+        // .applicationDefined 后 macOS popover 标准 "Escape 关掉" 走不通了。
+        // 加上 .keyDown,在 closure 里识别 Esc(keyCode 53) → 主动关。
         outsideClickMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
+            matching: [.leftMouseDown, .rightMouseDown, .keyDown]
         ) { [weak self] event in
             guard let self = self,
                   let popover = self.popover,
-                  popover.isShown,
-                  let popoverWindow = popover.contentViewController?.view.window
+                  popover.isShown
             else {
+                return event
+            }
+            // Esc keyDown — 主动 performClose 恢复 macOS popover 习惯。
+            // 注:.keyDown 没有 .window,跳过下面的 event.window 比较分支。
+            if event.type == .keyDown {
+                if event.keyCode == 53 {  // kVK_Escape
+                    popover.performClose(nil)
+                    self.removeOutsideClickMonitor()
+                }
+                return event
+            }
+            guard let popoverWindow = popover.contentViewController?.view.window else {
                 return event
             }
             // burst 窗口内一律 pass-through — 见 swallowOutsideClickUntil 设置处注释。
@@ -297,7 +316,6 @@ final class MenuBarController {
             if event.window !== popoverWindow {
                 popover.performClose(nil)
                 self.removeOutsideClickMonitor()
-            } else {
             }
             return event
         }
@@ -350,6 +368,15 @@ private final class KeyableHostingController<Content: View>: NSHostingController
 private final class AutoKeyPopover: NSPopover {
     override func show(relativeTo positioningRect: NSRect, of positioningView: NSView, preferredEdge: NSRectEdge) {
         super.show(relativeTo: positioningRect, of: positioningView, preferredEdge: preferredEdge)
+        makeKeyOnNextRunloop()
+    }
+
+    /// NSPopover 在 macOS 14+ 还有 `show(relativeTo:)` toolbar item 重载 — 同样
+    /// 覆盖走 makeKey 调度。注:之前 review flag 的"5-arg show 重载"实际不存在
+    /// (NSPopover.h 只暴露 4-arg / toolbar 两个入口),这一项修正以防后人再次 fflag。
+    @available(macOS 14.0, *)
+    override func show(relativeTo toolbarItem: NSToolbarItem) {
+        super.show(relativeTo: toolbarItem)
         makeKeyOnNextRunloop()
     }
 

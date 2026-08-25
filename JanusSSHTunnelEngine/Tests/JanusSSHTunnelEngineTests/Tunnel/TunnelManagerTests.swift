@@ -149,9 +149,61 @@ final class TunnelManagerTests: XCTestCase {
             + "若 .error 或 .reconnecting / .running,说明 stopAll 漏标"
             + " userRequestedStop,被 SIGKILL 后 handleProcessExit 误触发 autoReconnect"
         )
+        // 去掉 pid 断言 — `_previewSetState` 这条路径没设过 pid,XCTAssertNil
+        // 永远为 true,等于没有 signal。pid 清理逻辑留给真实 start/stop 链路测试。
+        // 仍可加 if let pid = ... { ... } 把 pid 注入路径补全,留作后续 reviewer。
+    }
 
-        // pid 应当清空
-        XCTAssertNil(mgr.tunnel(for: p1.id)?.pid)
+    /// 锁定 #1+#2 修复:stopAll 不再无差别覆盖 .error / .stopped 隧道的诊断
+    /// 信息(stoppedAt / lastError),只对活跃态收敛。
+    func test_stop_all_preserves_error_and_stopped_tunnel_state() async throws {
+        let (mgr, _) = makeManager()
+        let pErr = makeProfile(name: "broken", alias: "broken")
+        let pStop = makeProfile(name: "done", alias: "done")
+        let pRun = makeProfile(name: "live", alias: "live")
+        mgr.registerProfile(pErr)
+        mgr.registerProfile(pStop)
+        mgr.registerProfile(pRun)
+
+        let now = Date()
+        mgr._previewSetState(
+            profileID: pErr.id,
+            state: .error,
+            startedAt: nil,
+            stoppedAt: now,
+            lastError: .sshExited(code: 255, signal: nil, reason: .processExited)
+        )
+        mgr._previewSetState(
+            profileID: pStop.id,
+            state: .stopped,
+            startedAt: nil,
+            stoppedAt: now,
+            lastError: nil
+        )
+        mgr._previewSetState(
+            profileID: pRun.id,
+            state: .running,
+            startedAt: now,
+            stoppedAt: nil,
+            lastError: nil
+        )
+
+        try await mgr.stopAll()
+
+        // 活跃隧道 → .stopped,lastError 清零。
+        XCTAssertEqual(mgr.tunnel(for: pRun.id)?.state, .stopped)
+        XCTAssertNil(mgr.tunnel(for: pRun.id)?.lastError)
+
+        // .error 隧道 — state 保留,lastError 保留(诊断信息)。
+        XCTAssertEqual(mgr.tunnel(for: pErr.id)?.state, .error)
+        if case .sshExited(let code, _, _) = mgr.tunnel(for: pErr.id)?.lastError {
+            XCTAssertEqual(code, 255)
+        } else {
+            XCTFail("lastError 应该是 .sshExited(255),被 stopAll 误清了")
+        }
+
+        // .stopped 隧道 — state 保留。
+        XCTAssertEqual(mgr.tunnel(for: pStop.id)?.state, .stopped)
     }
 
     // MARK: - Helpers

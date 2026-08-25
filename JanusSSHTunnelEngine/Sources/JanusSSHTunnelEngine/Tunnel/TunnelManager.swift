@@ -252,25 +252,41 @@ public final class TunnelManager {
     }
 
     public func stopAll() async {
-        // 跟 per-profile stop() 一样,先把所有 running tunnel 标记为
-        // user-requested — 否则 handleProcessExit 后续收到 .terminated
-        // 事件时会把 state 错置为 .error,如果那个 profile 还开了
-        // autoReconnect,会接着触发 reconnect 循环,stopped 一会儿又被
-        // 重连起来。
-        for id in tunnels.keys where tunnels[id]?.state == .running {
+        // 跟 per-profile stop() 一样,标记所有已知 tunnel 为 user-requested —
+        // 范围比之前宽:
+        //   - .running → 主路径,handleProcessExit's early-return 防 autoReconnect
+        //   - .starting / .reconnecting / .stopping → 之前漏了这几态,它们的
+        //     observation task 若在 stopAll 期间到达 .terminated,会被
+        //     handleProcessExit 当成"自然死",状态错置 .error,然后触发
+        //     autoReconnect 循环,表现出来就是"Stop All → 停了一会又跑起来"。
+        //   - .error → 这些是已经处于"自然死"晚期,再 mark 一下 no-op 但确保
+        //     后续 record 不会引入不一致。
+        // 总之:userRequestedStop 是 eventual stop 的标记,跟当前 state 解耦。
+        for id in tunnels.keys {
             userRequestedStop.insert(id)
         }
+        // 取消已经在排队的 reconnect schedule — 不然 schedule 触发后调
+        // start(),又会起新 SSH,跟用户"全停"的意图冲撞。
+        await reconnectController.cancelAll()
 
         await processManager.terminateAll(reason: .userRequested)
 
         // 进程已死,直接置 .stopped — 不依赖 .terminated 观察事件的回调
         // 顺序。handleProcessExit 自己看到 userRequestedStop 也会 early-return。
+        // 重要:不再无差别覆盖 .error / .stopped 隧道的诊断信息(
+        // .error 的 lastError / .stopped 的 stoppedAt)— 它们是用户想看到的
+        // 历史现场。Stop All 的语义只针对"活跃态"做收敛,history 保留。
         for id in tunnels.keys {
             updateTunnel(id: id) { t in
-                t.state = .stopped
-                t.stoppedAt = Date()
-                t.pid = nil
-                t.lastError = nil
+                switch t.state {
+                case .running, .starting, .reconnecting, .stopping:
+                    t.state = .stopped
+                    t.stoppedAt = Date()
+                    t.pid = nil
+                    t.lastError = nil
+                case .stopped, .error:
+                    break  // 保留诊断信息
+                }
             }
         }
     }

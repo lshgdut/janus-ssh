@@ -145,7 +145,18 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
-                Task { await container.sshHostManager.refresh() }
+                // 之前 fire-and-forget Task — refresh() 抛异常被吞,~/.ssh/config
+                // 出错用户看不到反馈就以为成功。接 do/catch 至少 print 到 stderr,
+                // 后续 tunnelLogStore 暴露 public append 时可以替换为写日志。
+                Task {
+                    do {
+                        try await container.sshHostManager.refresh()
+                    } catch {
+                        #if DEBUG
+                        print("[JanusSSH] Refresh SSH Config failed: \(error)")
+                        #endif
+                    }
+                }
                 // 刷新是后台操作,用户大概率想看到反馈 — 关掉 popover 让主窗口
                 // 顶上来显示刷新的 hosts。
                 container.menuBarController.dismissPopover()
@@ -283,6 +294,10 @@ private struct MenuBarProfileRow: View {
                 performAction()
             }
         }
+        // SwiftUI Button 之前自动加 .isButton trait,onTapGesture 自己不加 —
+        // VoiceOver 之前读 "Quit, button" 现在只读 "Quit"。补回来。
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(Text(profile.name))
     }
 
     /// Action 正在执行的过渡状态 — stop 已发出但 SSH 还没退出 / start 已发出但
@@ -410,6 +425,9 @@ private struct MenuBarItem: View {
         .onTapGesture {
             action()
         }
+        // 跟 MenuBarProfileRow 同一个 a11y 修复 — Button→onTapGesture 丢了
+        // .isButton trait,VoiceOver 之前会读 "Open Application, button"。
+        .accessibilityAddTraits(.isButton)
     }
 }
 // 在 Xcode canvas 里直接预览 MenuBar 效果,改 padding / 字号 / hover 立刻看到反馈,
