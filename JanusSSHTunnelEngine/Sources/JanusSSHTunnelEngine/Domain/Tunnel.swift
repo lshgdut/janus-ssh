@@ -29,6 +29,37 @@ public struct Tunnel: Identifiable, Sendable {
         self.stoppedAt = stoppedAt
         self.lastError = lastError
     }
+
+    // MARK: - State transitions
+    //
+    // 集中所有写状态机的辅助方法 — 之前 `TunnelManager.stop(...)`,
+    // `TunnelManager.stopAll(...)`,`TunnelManager.stopAllNow()` 都各自 inline
+    // 一份 `state = .stopping` / `state = .stopped` + 配套 `pid = nil` 等清零,
+    // 5 行块在三处复制。code-review 顶级 finding(#10)指出这种重复容易"加 pauseAll()
+    // 时第三处出现,跟现有两处漂移"。
+    // 抽出后:
+    //   - 唯一一处约定:"stopped 意味着 pid 清空、lastError 清零、stoppedAt = now"
+    //   - 加 `pause()` / `error()` / `retrying()` 等新路径只需在 Tunnel 自己加,
+    //     TunnelManager 不重复。
+    //
+    // 用 `mutating` 是因为这是 value-type,mutating 函数在 inout 时原地改,
+    // 调用处仍要 `var t = tunnels[id]; t.markStopped(); tunnels[id] = t` 写回 dict。
+
+    /// 进入"正在停"的过渡态。仅过渡,期待 observer 后续命中 .terminated
+    /// 或者 TunnelManager 自己收尾。
+    public mutating func markStopping() {
+        state = .stopping
+    }
+
+    /// 收尾到 .stopped — 清 pid、lastError,记 stoppedAt = now。
+    /// 用于 TunnelManager.stop(profileID:)、TunnelManager.stopAll() 两种
+    /// 停止路径的"进程已死"收尾。
+    public mutating func markStopped(now: Date = Date()) {
+        state = .stopped
+        stoppedAt = now
+        pid = nil
+        lastError = nil
+    }
 }
 
 /// Profile 的不可变运行时快照。

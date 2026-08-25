@@ -215,17 +215,15 @@ public final class TunnelManager {
         // 标记 user-requested,阻止后续 .terminated 事件把状态错置为 .error
         userRequestedStop.insert(profileID)
         updateTunnel(id: profileID) { t in
-            t.state = .stopping
+            t.markStopping()
         }
         await processManager.terminate(profileID: profileID, reason: .userRequested)
 
         // terminate() 已确保进程死亡(graceful SIGTERM 5s 内 / 否则 SIGKILL),
-        // 直接置 .stopped — 不依赖观察任务的 .terminated 事件
+        // 直接置 .stopped — 不依赖观察任务的 .terminated 事件。收尾动作走
+        // Tunnel.markStopped() 的单一约定(见 Tunnel.swift 注释)。
         updateTunnel(id: profileID) { t in
-            t.state = .stopped
-            t.stoppedAt = Date()
-            t.pid = nil
-            t.lastError = nil
+            t.markStopped()
         }
         await logStore.append(profileID: profileID, kind: .app,
                               message: "User requested stop · tunnel stopped")
@@ -280,10 +278,7 @@ public final class TunnelManager {
             updateTunnel(id: id) { t in
                 switch t.state {
                 case .running, .starting, .reconnecting, .stopping:
-                    t.state = .stopped
-                    t.stoppedAt = Date()
-                    t.pid = nil
-                    t.lastError = nil
+                    t.markStopped()  // 单点约定:state=.stopped + stoppedAt/pid/lastError 收尾
                 case .stopped, .error:
                     break  // 保留诊断信息
                 }
