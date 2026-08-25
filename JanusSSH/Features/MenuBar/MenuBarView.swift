@@ -125,7 +125,6 @@ struct MenuBarView: View {
             // 没在 Info.plist 注册,NSWorkspace.open 静默失败。
             //
             MenuBarItem(label: "Open Application", shortcut: "⌘1") {
-                debugLog("MenuBar action: Open Application fired")
                 Task { @MainActor in
                     NSApp.activate(ignoringOtherApps: true)
                     AppWindowFocus.focusMain()
@@ -137,7 +136,6 @@ struct MenuBarView: View {
             // 用 \.openSettings — 之前 NSApp.sendAction(showSettingsWindow:)
             // 从 MenuBarExtra 触发不稳定。
             MenuBarItem(label: "Settings…", shortcut: "⌘,") {
-                debugLog("MenuBar action: Settings fired")
                 openSettings()
                 // openSettings 立即触发 SwiftUI Window scene,但 SettingsWindow
                 // 实际浮现有一拍延迟。这里主动 dismiss popover,避免屏幕上短暂
@@ -147,7 +145,6 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
-                debugLog("MenuBar action: Refresh SSH Config fired")
                 Task { await container.sshHostManager.refresh() }
                 // 刷新是后台操作,用户大概率想看到反馈 — 关掉 popover 让主窗口
                 // 顶上来显示刷新的 hosts。
@@ -155,7 +152,6 @@ struct MenuBarView: View {
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
-                debugLog("MenuBar action: Quit fired")
                 // 走 menuBarController.quit() — 它会显式拆 outside-click monitor +
                 // 关 popover 再 NSApp.terminate。原来这里直接 NSApp.terminate(nil),
                 // 依赖 outside-click monitor 副作用来 dismiss popover,但
@@ -284,7 +280,6 @@ private struct MenuBarProfileRow: View {
         .allowsHitTesting(!isPending)
         .onTapGesture {
             if !isPending {
-                debugLog("MenuBarProfileRow.onTapGesture fired: \(profile.name) state=\(tunnel.state)")
                 performAction()
             }
         }
@@ -413,7 +408,6 @@ private struct MenuBarItem: View {
         .hoverHighlight(hovering)
         .onHover { hovering = $0 }
         .onTapGesture {
-            debugLog("MenuBarItem.onTapGesture fired: \(label)")
             action()
         }
     }

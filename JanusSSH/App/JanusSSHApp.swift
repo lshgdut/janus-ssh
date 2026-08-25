@@ -214,15 +214,12 @@ final class MenuBarController {
     }
 
     @objc private func handleButtonClick(_ sender: NSStatusBarButton) {
-        debugLog("menu-bar: handleButtonClick fired, button screen=\(statusItem?.button?.window?.screen?.localizedName ?? "nil")")
         guard let button = statusItem?.button else { return }
         if let existing = popover, existing.isShown {
-            debugLog("menu-bar: closing existing popover")
             existing.performClose(nil)
             removeOutsideClickMonitor()
             return
         }
-        debugLog("menu-bar: creating AutoKeyPopover, super.show below")
         let p = AutoKeyPopover()
         // .applicationDefined:我们自己处理 dismiss。.transient 在 NSPopover +
         // NSHostingController 组合下偶尔不响应外部点击(尤其点主窗口),
@@ -259,7 +256,6 @@ final class MenuBarController {
 
         self.popover = p
         installOutsideClickMonitor()
-        debugLog("menu-bar: p.show(...) called, statusItem screen=\(button.window?.screen?.localizedName ?? "nil")")
         // 时间窗口 swallow:开 popover 后 ~300ms 内 monitor 一律 pass-through,
         // 避开"开 click 尾巴 + view 渲染 + SwiftUI gesture resolve"陆续到达
         // 的 burst 都被误判成 outside click 立刻关掉 popover。详情见 monitor
@@ -293,18 +289,15 @@ final class MenuBarController {
             }
             // burst 窗口内一律 pass-through — 见 swallowOutsideClickUntil 设置处注释。
             if let until = self.swallowOutsideClickUntil, Date() < until {
-                debugLog("outsideClickMonitor: burst window pass-through (event.window=\(String(describing: event.window)))")
                 return event
             }
             // event.window === popoverWindow → 点在 popover 内,放过
             // event.window 是其他 window(主窗口 / 浮动窗口)→ 点在外面,关
             // event.window 是 nil(点桌面 / 其他 app)→ 也算在外面,关
             if event.window !== popoverWindow {
-                debugLog("outsideClickMonitor: outside click, event.window=\(String(describing: event.window)), popoverWindow=\(popoverWindow), closing")
                 popover.performClose(nil)
                 self.removeOutsideClickMonitor()
             } else {
-                debugLog("outsideClickMonitor: inside popover click, event.window matches popoverWindow, pass-through")
             }
             return event
         }
@@ -336,7 +329,6 @@ private final class KeyableHostingController<Content: View>: NSHostingController
     override func viewDidAppear() {
         super.viewDidAppear()
         let win = view.window
-        debugLog("KeyableHostingController.viewDidAppear: window=\(win != nil), isKey=\(win?.isKeyWindow ?? false), screen=\(win?.screen?.localizedName ?? "nil")")
         win?.makeKey()
     }
 }
@@ -364,13 +356,10 @@ private final class AutoKeyPopover: NSPopover {
     /// 把 makeKey 调度到下一个 main runloop tick — 这时 popover 内部 NSPanel 已经
     /// wire 完整,contentViewController?.view.window 不再是 nil。
     private func makeKeyOnNextRunloop() {
-        debugLog("AutoKeyPopover: scheduling makeKey on next runloop")
         let popoverRef = self
         DispatchQueue.main.async {
             let win = popoverRef.contentViewController?.view.window
-            debugLog("AutoKeyPopover: runloop fired, window=\(win != nil), isKey=\(win?.isKeyWindow ?? false), screen=\(win?.screen?.localizedName ?? "nil")")
             win?.makeKey()
-            debugLog("AutoKeyPopover: after makeKey, isKey=\(win?.isKeyWindow ?? false)")
         }
     }
 }
@@ -405,25 +394,4 @@ enum AppWindowFocus {
     }
 }
 
-// MARK: - 调试日志(临时)
-
-/// 调试期写到 `~/Library/Logs/JanusSSH/menu-bar-debug.log`,每行带时间戳。
-/// 同时 print 出来让 Console.app / `log stream` 能看到。问题修完会删。
-func debugLog(_ msg: @autoclosure () -> String) {
-    let ts = ISO8601DateFormatter().string(from: Date())
-    let line = "[\(ts)] \(msg())"
-    let formatted = "[JanusSSH-debug] \(line)"
-    print(formatted)
-    let dir = NSString("~/Library/Logs/JanusSSH").expandingTildeInPath
-    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-    let path = (dir as NSString).appendingPathComponent("menu-bar-debug.log")
-    let payload = (line + "\n").data(using: .utf8) ?? Data()
-    if let h = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) {
-        h.seekToEndOfFile()
-        h.write(payload)
-        try? h.close()
-    } else {
-        try? payload.write(to: URL(fileURLWithPath: path))
-    }
-}
 
