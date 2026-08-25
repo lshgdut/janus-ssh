@@ -4,12 +4,10 @@ import JanusSSHTunnelEngine
 @main
 struct JanusSSHApp: App {
     @State private var container: AppContainer
-    @State private var menuBarController: MenuBarController?
 
     init() {
         let container = AppContainer.bootstrap()
         _container = State(initialValue: container)
-        _menuBarController = State(initialValue: MenuBarController(container: container))
     }
 
     var body: some Scene {
@@ -25,7 +23,7 @@ struct JanusSSHApp: App {
                     // setting,真正实现 Settings 开关切换菜单栏图标可见性。
                     // SwiftUI MenuBarExtra 用 `if` 条件化包住会触发编译器崩溃
                     // (SceneBuilder 推断不出来),所以走 NSStatusItem。
-                    menuBarController?.start()
+                    container.menuBarController.start()
                 }
         }
         .windowResizability(.contentMinSize)
@@ -102,6 +100,20 @@ final class MenuBarController {
         self.container = container
     }
 
+    /// App 退出路径 — 显式拆 outside-click monitor + 关 popover 再 terminate。
+    /// 之前依赖 outside-click monitor 在左键 outside popover 时 dismiss,但
+    /// .applicationDefined + NSHostingController 组合下偶发 popover 残留,
+    /// 会把 willTerminate 拖住,结果 app 不退出。所以 Quit 路径必须自己负责
+    /// dismiss,不能靠 monitor 副作用。
+    func quit() {
+        removeOutsideClickMonitor()
+        if let popover = popover {
+            popover.performClose(nil)
+        }
+        self.popover = nil
+        NSApp.terminate(nil)
+    }
+
     deinit {
         // 非 isolated deinit,只能安全访问 Sendable 值
         // 实际清理走 visibilityTask.cancel() — Task.cancel 是 Sendable safe
@@ -120,6 +132,16 @@ final class MenuBarController {
     }
 
     func start() {
+        // 幂等 — SwiftUI Window 的 .onAppear 会随窗口 hide/show 多次 fire。
+        // 之前没这层 guard,每次 .onAppear 都 NSStatusBar.system.statusItem(...)
+        // 新建一个 item,但旧 item 仍在系统 menu bar 里 — 菜单栏上 N 个
+        // Janus 图标,点哪个都开同一个 popover。同时 visibilityTask 也是直接
+        // 重新赋值,旧 Task 没人 cancel,后台 N 个观察循环在跑。
+        //
+        // start() 设计成"App 启动时调一次",重复调用一律 no-op,需要重置走
+        // shutdown() 再 start()。
+        guard statusItem == nil else { return }
+
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // 必须显式设 image.size — AppIcon intrinsic size 是 1024×1024,
         // NSStatusItem button 不会自动缩,直接铺满菜单栏(之前看到的"icon 异常大"bug)
@@ -186,10 +208,27 @@ final class MenuBarController {
         // 表现就是菜单"不隐藏",连带 Quit 也没反应(popover 残留把 willTerminate
         // 拖住)。改成手动监听 leftMouseDown,在 popover 窗口外就关掉。
         p.behavior = .applicationDefined
-        p.contentSize = NSSize(width: 320, height: 1)
-        p.contentViewController = NSHostingController(
+
+        // ⚠️ 内容尺寸必须显式设 — 不能依赖 NSPopover 自动算 hosting view 的
+        // intrinsicContentSize。NSHostingController + .frame(width:) 的组合下,
+        // 高度是 dynamic(intrinsic),但 NSPopover 在 show() 时取的尺寸经常是
+        // SwiftUI layout 之前的 stale 值,hosting view 装不下整个 MenuBarView,
+        // 底部 hover 高亮和 hit-test 都被截掉。
+        //
+        // 修法:装好 contentViewController,主动 layoutSubtreeIfNeeded() 让
+        // SwiftUI 把 VStack 真正折叠一遍,fit 出准确高度,再设 contentSize。
+        // 这样 NSPopover 拿到的尺寸跟实际内容对齐,hit-test 全覆盖。
+        let host = NSHostingController(
             rootView: MenuBarView().environment(container)
         )
+        host.view.layoutSubtreeIfNeeded()
+        let fittedHeight = host.view.fittingSize.height
+        p.contentSize = NSSize(
+            width: 320,  // 必须跟 MenuBarView.popoverWidth 一致
+            height: max(fittedHeight, 1)
+        )
+        p.contentViewController = host
+
         self.popover = p
         installOutsideClickMonitor()
         p.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)

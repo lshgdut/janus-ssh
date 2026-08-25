@@ -145,9 +145,12 @@ struct MenuBarView: View {
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
-                // 事件监听器(在 MenuBarController.installOutsideClickMonitor
-                // 装的)负责 dismiss popover — 所以这里直接 terminate 就行。
-                NSApp.terminate(nil)
+                // 走 menuBarController.quit() — 它会显式拆 outside-click monitor +
+                // 关 popover 再 NSApp.terminate。原来这里直接 NSApp.terminate(nil),
+                // 依赖 outside-click monitor 副作用来 dismiss popover,但
+                // .applicationDefined + NSHostingController 组合下偶发 popover
+                // 残留,把 willTerminate 拖住,app 就不退出了。
+                container.menuBarController.quit()
             }
         }
     }
