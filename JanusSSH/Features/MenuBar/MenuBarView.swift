@@ -218,42 +218,42 @@ private struct MenuBarProfileRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Button(action: performAction) {
-            HStack(spacing: 10) {
-                StatusBadge(state: tunnel.state, style: .compact)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(profile.name)
-                        // 设计稿:profile 名用 regular 字重,不要 medium/bold
-                        // 整体感觉更轻盈、更克制
-                        .font(.system(size: 12.5, weight: .regular))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text(metadata)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                if hovering {
-                    // pending 状态(action 已经在跑)显示 spinner,而不是再显示
-                    // "Stop" / "Retry" —— 避免用户重复点击触发竞态。
-                    if isPending {
-                        ProgressView()
-                            .controlSize(.small)
-                            .transition(.opacity)
-                    } else if let label = actionLabel {
-                        Text(label)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(actionColor)
-                            .transition(.opacity)
-                    }
+        // 不用 `Button(action: performAction)` — 跟 MenuBarItem 同样的 SwiftUI
+        // Button + .applicationDefined NSPopover 不接事件问题,改用 .onTapGesture
+        // 走 SwiftUI gesture 系统。详见 MenuBarItem 注释。
+        HStack(spacing: 10) {
+            StatusBadge(state: tunnel.state, style: .compact)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(profile.name)
+                    // 设计稿:profile 名用 regular 字重,不要 medium/bold
+                    // 整体感觉更轻盈、更克制
+                    .font(.system(size: 12.5, weight: .regular))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(metadata)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if hovering {
+                // pending 状态(action 已经在跑)显示 spinner,而不是再显示
+                // "Stop" / "Retry" —— 避免用户重复点击触发竞态。
+                if isPending {
+                    ProgressView()
+                        .controlSize(.small)
+                        .transition(.opacity)
+                } else if let label = actionLabel {
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(actionColor)
+                        .transition(.opacity)
                 }
             }
-            // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())  // 整行可点
         .hoverHighlight(hovering)
         // onHover 推到下一个 runloop tick — 鼠标若正好停在 row 上、popover
@@ -263,9 +263,16 @@ private struct MenuBarProfileRow: View {
             Task { @MainActor in hovering = h }
         }
         .animation(.easeOut(duration: 0.08), value: hovering)
-        // 正在 stop / start / reconnect 的过渡状态 — 禁用整行点击,
-        // 避免重复 fire stop() / start()。
-        .disabled(isPending)
+        // .allowsHitTesting(isPending ? false : true) 替代 .disabled — .disabled
+        // 在某些 popover 上下文里会切掉 SwiftUI gesture 通道,改用 hit-testing
+        // gate 保留 onTapGesture 一定能收事件。
+        .allowsHitTesting(!isPending)
+        .onTapGesture {
+            if !isPending {
+                debugLog("MenuBarProfileRow.onTapGesture fired: \(profile.name) state=\(tunnel.state)")
+                performAction()
+            }
+        }
     }
 
     /// Action 正在执行的过渡状态 — stop 已发出但 SSH 还没退出 / start 已发出但
@@ -368,28 +375,32 @@ private struct MenuBarItem: View {
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(shortcut)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
-            // 设计稿:menu item 上下 ~9pt 呼吸,与 profile 行保持节奏一致
-            .padding(.horizontal, 14).padding(.vertical, 9)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        // 不用 `Button(action: action)` — .applicationDefined NSPopover + SwiftUI
+        // Button 这个组合下,Button 内部的 tap-gesture hit-test 在某些 macOS
+        // 版本不接事件(实测监测到 clicks 落进 popover window,event.window match,
+        // 但 Button action closure 永远不 fire — /tmp/janus-debug log 印证)。
+        // 改用纯 HStack + .onTapGesture 走 SwiftUI gesture 系统,这个路径稳。
+        HStack {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.primary)
+            Spacer()
+            Text(shortcut)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.tertiary)
         }
-        .buttonStyle(.plain)
-        // contentShape 必须在 Button 外层 — 否则 MenuBarExtra 里
-        // hit-test 不完整,只有文字区域响应点击,留白处不响应
+        // 设计稿:menu item 上下 ~9pt 呼吸,与 profile 行保持节奏一致
+        .padding(.horizontal, 14).padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        // hover 高亮作为 Button 的 background — SwiftUI 的 .background
-        // 会自动按 Button 的实际尺寸渲染,而不是 label 的尺寸
+        // hover 高亮作为 background — SwiftUI 的 .background
+        // 会自动按 View 的实际尺寸渲染,而不是 label 的尺寸
         .hoverHighlight(hovering)
         .onHover { hovering = $0 }
+        .onTapGesture {
+            debugLog("MenuBarItem.onTapGesture fired: \(label)")
+            action()
+        }
     }
 }
 // 在 Xcode canvas 里直接预览 MenuBar 效果,改 padding / 字号 / hover 立刻看到反馈,

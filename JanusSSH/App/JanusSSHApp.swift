@@ -95,6 +95,11 @@ final class MenuBarController {
     private var visibilityTask: Task<Void, Never>?
     private var popover: NSPopover?
     private var outsideClickMonitor: Any?
+    /// 跳过 monitor 下一个 mouseDown — 用户点 menu bar icon 打开 popover 那条
+    /// mouseDown 也会被 NSEvent.addLocalMonitorForEvents 截到,event.window 是
+    /// NSStatusBarWindow(不是 popover),会被误判成"outside click"立刻关掉
+    /// popover。设立这个 flag:open 完 popover 后让下一条 mouseDown pass-through。
+    private var swallowNextMouseDownForOpen: UInt8 = 0
 
     init(container: AppContainer) {
         self.container = container
@@ -242,6 +247,10 @@ final class MenuBarController {
         self.popover = p
         installOutsideClickMonitor()
         debugLog("menu-bar: p.show(...) called, statusItem screen=\(button.window?.screen?.localizedName ?? "nil")")
+        // 标记 swallow 旗,让 outsideClickMonitor 下一条 mouseDown pass-through —
+        // 否则 AppKit 把打开 popover 那条 click 派给 status item window → 我们的
+        // monitor 看到 event.window !== popoverWindow,误判 outside 立刻关掉。
+        swallowNextMouseDownForOpen = 1
         p.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
@@ -266,6 +275,12 @@ final class MenuBarController {
                   popover.isShown,
                   let popoverWindow = popover.contentViewController?.view.window
             else {
+                return event
+            }
+            // 打开 popover 的那条 mouseDown 会一起 reach 过来 — 让它先过去
+            if self.swallowNextMouseDownForOpen > 0 {
+                self.swallowNextMouseDownForOpen = 0
+                debugLog("outsideClickMonitor: swallow flag — pass-through open click (event.window=\(String(describing: event.window)))")
                 return event
             }
             // event.window === popoverWindow → 点在 popover 内,放过
