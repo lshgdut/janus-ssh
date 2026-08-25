@@ -252,9 +252,26 @@ public final class TunnelManager {
     }
 
     public func stopAll() async {
+        // 跟 per-profile stop() 一样,先把所有 running tunnel 标记为
+        // user-requested — 否则 handleProcessExit 后续收到 .terminated
+        // 事件时会把 state 错置为 .error,如果那个 profile 还开了
+        // autoReconnect,会接着触发 reconnect 循环,stopped 一会儿又被
+        // 重连起来。
+        for id in tunnels.keys where tunnels[id]?.state == .running {
+            userRequestedStop.insert(id)
+        }
+
         await processManager.terminateAll(reason: .userRequested)
+
+        // 进程已死,直接置 .stopped — 不依赖 .terminated 观察事件的回调
+        // 顺序。handleProcessExit 自己看到 userRequestedStop 也会 early-return。
         for id in tunnels.keys {
-            updateTunnel(id: id) { $0.state = .stopping }
+            updateTunnel(id: id) { t in
+                t.state = .stopped
+                t.stoppedAt = Date()
+                t.pid = nil
+                t.lastError = nil
+            }
         }
     }
 
