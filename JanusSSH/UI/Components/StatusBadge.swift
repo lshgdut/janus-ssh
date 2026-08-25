@@ -91,7 +91,7 @@ private struct CompactStatusDot: View {
                         Circle()
                             .fill(
                                 RadialGradient(
-                                    colors: [color.opacity(0.7), color.opacity(0.0)],
+                                    colors: [color.opacity(0.45), color.opacity(0.0)],
                                     center: .center,
                                     startRadius: size * 0.3,
                                     endRadius: size * 1.2
