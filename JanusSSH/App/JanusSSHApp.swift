@@ -218,7 +218,14 @@ final class MenuBarController {
         // 修法:装好 contentViewController,主动 layoutSubtreeIfNeeded() 让
         // SwiftUI 把 VStack 真正折叠一遍,fit 出准确高度,再设 contentSize。
         // 这样 NSPopover 拿到的尺寸跟实际内容对齐,hit-test 全覆盖。
-        let host = NSHostingController(
+        //
+        // 同时用 KeyableHostingController(见下)替代直接 NSHostingController —
+        // `.applicationDefined` NSPopover 的窗口默认 `becomesKeyOnlyOnUserAction
+        // = true`,第一次 mouseDown 会被 AppKit 抢去做 key-window promotion,
+        // 按钮 action 不触发 — 表现就是"点两下才生效"。Subclass 在 viewDidAppear
+        // 立即 window?.makeKey(),让 popover 一出现就拿 key,后续 button 第一次
+        // 点击直接走 target/action,不再被 promotion 抢先消耗。
+        let host = KeyableHostingController(
             rootView: MenuBarView().environment(container)
         )
         host.view.layoutSubtreeIfNeeded()
@@ -273,6 +280,22 @@ final class MenuBarController {
             NSEvent.removeMonitor(m)
             outsideClickMonitor = nil
         }
+    }
+}
+
+/// NSPopover 内的 SwiftUI hosting controller — viewDidAppear 强制 makeKey。
+///
+/// `.applicationDefined` NSPopover 用的 NSPanel 默认不会主动抢占 key,popover
+/// 上场时 isKeyWindow == false。第一次 mouseDown 落在 popover 内 button 上时,
+/// AppKit 把那次点击用做 key-window promotion,按钮 action 不触发 — 用户看到的
+/// 就是"点 Settings / Quit 要两下才生效"。NSHostingController 默认不覆盖
+/// viewDidAppear,我们在子类里 view 一出现在 AppKit 派发任何鼠标事件之前调
+/// `window?.makeKey()`,把 popover 锁到 key 状态,后续 button 第一次点击直接走
+/// normal target/action,不再被 promotion 抢先消耗。
+private final class KeyableHostingController<Content: View>: NSHostingController<Content> {
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        view.window?.makeKey()
     }
 }
 // MARK: - AppWindowFocus
