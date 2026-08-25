@@ -246,11 +246,10 @@ private struct ProfileCard: View {
                 .padding(.vertical, 1)
 
             VStack(alignment: .leading, spacing: 10) {
-                // 标题行:profile 名 + 状态 pill
-                HStack(alignment: .firstTextBaseline) {
+                // 标题行:profile 名 + 状态 pill — pill 紧贴 title,不再右侧 Spacer 推开
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(profile.name)
                         .font(.system(.title3, design: .default).weight(.semibold))
-                    Spacer()
                     StatusPill(tunnel: tunnel)
                 }
 
