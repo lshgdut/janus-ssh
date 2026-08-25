@@ -79,18 +79,28 @@ private struct CompactStatusDot: View {
 
         Group {
             if isRunning {
-                TimelineView(.periodic(from: .now, by: 1.4 / 30.0)) { ctx in
+                TimelineView(.periodic(from: .now, by: 2.6 / 30.0)) { ctx in
                     let phase = Self.phase(at: ctx.date)
                     ZStack {
-                        // Halo: opacity 0.55→0.12,scale 1.4→3.6 — 全程可见不归零,
-                        // 保留绿色饱和度不被深色背景吃掉。
+                        // Halo: RadialGradient 让外缘自然淡到 0,无硬边;scale 1.0→1.8
+                        // — 最大直径 ~14.4px,完全落在行内 padding(横向 12 / 纵向 9)
+                        // 范围内,不再溢出到 hover 框外。整圈周期 2.6s,明显比之前的
+                        // 1.4s 慢,体感更稳。
                         Circle()
-                            .fill(color.opacity(0.55 - 0.43 * phase))
+                            .fill(
+                                RadialGradient(
+                                    colors: [color.opacity(0.7), color.opacity(0.0)],
+                                    center: .center,
+                                    startRadius: size * 0.3,
+                                    endRadius: size * 1.2
+                                )
+                            )
                             .frame(width: size, height: size)
-                            .scaleEffect(1.4 + 2.2 * phase)
-                        // Solid dot:opacity 1.0→0.6 — 与 halo 反向呼吸
+                            .scaleEffect(1.0 + 0.8 * phase)
+                        // Solid dot:opacity 1.0→0.7 — 与 halo 反向呼吸,实色保持
+                        // anchor 位置视觉焦点不动。
                         Circle()
-                            .fill(color.opacity(1.0 - 0.4 * phase))
+                            .fill(color.opacity(1.0 - 0.3 * phase))
                             .frame(width: size, height: size)
                     }
                 }
@@ -104,9 +114,9 @@ private struct CompactStatusDot: View {
         .frame(width: size, height: size)
     }
 
-    /// 把当前时间映射到 0..1 相位,1.4s 一个 sin 周期 — 0→1→0 平滑往返。
+    /// 把当前时间映射到 0..1 相位,2.6s 一个 sin 周期 — 0→1→0 平滑往返。
     private static func phase(at date: Date) -> Double {
-        let cycle: Double = 1.4
+        let cycle: Double = 2.6
         let raw = date.timeIntervalSinceReferenceDate
             .truncatingRemainder(dividingBy: cycle) / cycle
         return sin(raw * .pi)

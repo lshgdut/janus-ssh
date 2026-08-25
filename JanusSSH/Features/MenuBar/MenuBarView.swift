@@ -265,6 +265,10 @@ private struct MenuBarProfileRow: View {
         // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
         .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // StatusBadge 的 breathing halo 在缩放到最大时直径 ~14.4px,
+        // 完全在 padding(横向 12 / 纵向 9)范围内。clipped() 作为兜底
+        // — 万一未来 halo scale 调大,不会盖到 hover 框外。
+        .clipShape(RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())  // 整行可点
         .hoverHighlight(hovering)
         // onHover 推到下一个 runloop tick — 鼠标若正好停在 row 上、popover
