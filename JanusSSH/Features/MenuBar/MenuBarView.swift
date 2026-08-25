@@ -124,11 +124,8 @@ struct MenuBarView: View {
             // 用 SwiftUI 标准 environment — 之前用 janusssh:// URL scheme
             // 没在 Info.plist 注册,NSWorkspace.open 静默失败。
             //
-            // ⚠️ 关键 — openWindow(id:) 在 NSHostingController/NSPopover 上下文里**无效**:
-            // SwiftUI 的 \.openWindow env value 由 Window scene 提供,
-            // 但 NSPopover 不是 SwiftUI Window scene,所以这里拿到的 openWindow 是空操作。
-            // 改用 AppKit 直接找到 main Window + makeKeyAndOrderFront。
             MenuBarItem(label: "Open Application", shortcut: "⌘1") {
+                debugLog("MenuBar action: Open Application fired")
                 Task { @MainActor in
                     NSApp.activate(ignoringOtherApps: true)
                     AppWindowFocus.focusMain()
@@ -137,14 +134,17 @@ struct MenuBarView: View {
             // 用 \.openSettings — 之前 NSApp.sendAction(showSettingsWindow:)
             // 从 MenuBarExtra 触发不稳定。
             MenuBarItem(label: "Settings…", shortcut: "⌘,") {
+                debugLog("MenuBar action: Settings fired")
                 openSettings()
                 NSApp.activate(ignoringOtherApps: true)
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
+                debugLog("MenuBar action: Refresh SSH Config fired")
                 Task { await container.sshHostManager.refresh() }
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
+                debugLog("MenuBar action: Quit fired")
                 // 走 menuBarController.quit() — 它会显式拆 outside-click monitor +
                 // 关 popover 再 NSApp.terminate。原来这里直接 NSApp.terminate(nil),
                 // 依赖 outside-click monitor 副作用来 dismiss popover,但
