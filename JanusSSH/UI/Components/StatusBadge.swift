@@ -82,10 +82,12 @@ private struct CompactStatusDot: View {
                 TimelineView(.periodic(from: .now, by: 2.6 / 30.0)) { ctx in
                     let phase = Self.phase(at: ctx.date)
                     ZStack {
-                        // Halo: RadialGradient 让外缘自然淡到 0,无硬边;scale 1.0→1.8
-                        // — 最大直径 ~14.4px,完全落在行内 padding(横向 12 / 纵向 9)
-                        // 范围内,不再溢出到 hover 框外。整圈周期 2.6s,明显比之前的
-                        // 1.4s 慢,体感更稳。
+                        // Halo: RadialGradient 让外缘自然淡到 0,无硬边;scale 1.2→2.4
+                        // — 最大直径 ~19.2px。行内 padding(横向 12 / 纵向 9)
+                        // 范围,但 MenuBarProfileRow 加了
+                        // .clipShape(RoundedRectangle(cornerRadius: 6)),
+                        // halo 即使稍微溢出也被切到 hover 框内,不会盖到外面。
+                        // 整圈周期 2.6s,明显比之前的 1.4s 慢,体感更稳。
                         Circle()
                             .fill(
                                 RadialGradient(
@@ -96,7 +98,7 @@ private struct CompactStatusDot: View {
                                 )
                             )
                             .frame(width: size, height: size)
-                            .scaleEffect(1.0 + 0.8 * phase)
+                            .scaleEffect(1.2 + 1.2 * phase)
                         // Solid dot:opacity 1.0→0.7 — 与 halo 反向呼吸,实色保持
                         // anchor 位置视觉焦点不动。
                         Circle()
