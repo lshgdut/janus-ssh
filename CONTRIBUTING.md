@@ -110,3 +110,47 @@ docker compose down
 2. `git tag v0.x.y`
 3. `git push --tags` 触发 `.github/workflows/release.yml`
 4. GitHub Action 自动 build + sign + notarize + DMG + 更新 Homebrew Cask
+
+---
+
+## Sharing Ad-hoc Builds(给真人用户用)
+
+`scripts/release.sh` 默认是 **ad-hoc 签名**(`CODE_SIGN_IDENTITY=-`),
+**没有 Apple Developer ID 也没有公证**。这个模式下产出的 DMG:
+
+- 本机跑 OK,自己 debug 用
+- **给真人用会被 macOS Gatekeeper 拦**:`"JanusSSH" 已损坏,无法打开`
+
+构建出的 DMG 里有两份给最终用户的辅助:
+
+| 文件 | 作用 |
+|---|---|
+| `RELEASE-README.md` | 在 DMG 内,安装步骤 + ad-hoc 说明,Quick Look / Finder 直接显示 |
+| `install-unquarantine.command` | 在 DMG 内,双击在 Terminal 跑,去掉 `com.apple.quarantine` 标记(等同 Finder 右键 Open) |
+
+两条路径之一就够了,最终用户用脚本里的 "方法 A — 跑这个 DMG 自带的 `install-unquarantine.command`" 最省事。
+
+### 真发出去(走 Apple Developer ID)
+
+`scripts/release.sh` 已经为切到 Developer ID 流程做了准备,export 三个
+env 即可整链路签名 + 公证:
+
+```bash
+export CODE_SIGN_IDENTITY="Developer ID Application: Your Name"
+export DEVELOPMENT_TEAM="YOUR10DIGITTEAMID"
+export KEYCHAIN_PROFILE="JanusSSH-Notarize"  # 用 `xcrun notarytool store-credentials` 一次性配
+./scripts/release.sh 0.2.0
+```
+
+脚本里 `KEYCHAIN_PROFILE` gating 已经在了:无值跳过 notarize(本机 ad-hoc),
+有值走完整真签 + notarize + staple。Developer ID 用户的
+`install-unquarantine.command` 在脚本里自动检测到无 quarantine 是 no-op,
+所以正式分发的 DMG 里这俩文档保留着也无害。
+
+需要 Apple Developer ID 时:https://developer.apple.com/programs/ (¥649/年)
+
+### 一次性的 `.command` 信任
+
+首次跑 `install-unquarantine.command` macOS 自己的 Gatekeeper 也会拦
+(`.command` 不像已签名的 `.app`)。第一次用户在 Finder 里右键 → Open
+→ Open 一次,之后双击就行。或者 `xattr -d com.apple.quarantine` 一次。

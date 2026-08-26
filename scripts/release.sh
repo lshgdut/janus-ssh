@@ -139,6 +139,19 @@ if hdiutil attach -nobrowse -mountpoint "$MOUNT_POINT" \
   cp -R "$APP_PATH" "$MOUNT_POINT/"
   ln -s /Applications "$MOUNT_POINT/Applications"
 
+  # 嵌入 ad-hoc 用户拿走的辅助:安装说明 + Gatekeeper 解除脚本。正式走
+  # Developer ID + 公证的产物里这俩文档可以保留(无害),或者从 release 包里
+  # 抽走 — 但做了下不去除,多 2 个文件无害。脚本里没强制区分 ad-hoc 跟签名
+  # 路径,简化逻辑:Dev ID 用户的"双击 install-unquarantine.command"是 no-op
+  # (脚本自动检测),所以不会误伤正式分发的体验。
+  if [ -f "$ROOT/Resources/RELEASE-README.md" ]; then
+    cp "$ROOT/Resources/RELEASE-README.md" "$MOUNT_POINT/RELEASE-README.md"
+  fi
+  if [ -f "$ROOT/Resources/install-unquarantine.command" ]; then
+    cp "$ROOT/Resources/install-unquarantine.command" "$MOUNT_POINT/install-unquarantine.command"
+    chmod +x "$MOUNT_POINT/install-unquarantine.command"
+  fi
+
   # Volume icon — 设 .VolumeIcon.icns 到根目录 + 用 SetFile -a C 加 kCustomIcon flag。
   # 这个 flag 写在 com.apple.FinderInfo xattr 里,Finder 看到 .VolumeIcon.icns 文件
   # 跟 kCustomIcon 的元数据组合,就把这个 icns 渲染成 volume 的图标。
