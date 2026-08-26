@@ -80,6 +80,16 @@ dmg-quick:
 	echo "❌ 没找到 $(APP_NAME).app — xcodebuild 失败?"; exit 1; \
 	fi; \
 	echo "Found: $$APP"; \
+	echo "==> Bumping version to $(VERSION) in built .app..."; \
+	APP_PLIST="$$APP/Contents/Info.plist"; \
+	if [ -f "$$APP_PLIST" ]; then \
+	  BUILD_NUM=$$(git rev-list --count HEAD 2>/dev/null || echo "1"); \
+	  plutil -replace CFBundleShortVersionString -string "$(VERSION)" "$$APP_PLIST"; \
+	  plutil -replace CFBundleVersion -string "$$BUILD_NUM" "$$APP_PLIST"; \
+	  echo "    - CFBundleShortVersionString = $(VERSION)"; \
+	  echo "    - CFBundleVersion = $$BUILD_NUM"; \
+	  codesign --force --sign - "$$APP" 2>/dev/null || true; \
+	fi; \
 	echo "==> Creating quick DMG (no volicon / no docs)..."; \
 	mkdir -p $(BUILD_DIR); \
 	hdiutil create -srcfolder "$$APP" \
@@ -113,6 +123,16 @@ dmg:
 	echo "❌ 没找到 $(APP_NAME).app — xcodebuild 失败?"; exit 1; \
 	fi; \
 	echo "App: $$APP"; \
+	echo "==> Bumping version to $(VERSION) in built .app..."; \
+	APP_PLIST="$$APP/Contents/Info.plist"; \
+	if [ -f "$$APP_PLIST" ]; then \
+	  BUILD_NUM=$$(git rev-list --count HEAD 2>/dev/null || echo "1"); \
+	  plutil -replace CFBundleShortVersionString -string "$(VERSION)" "$$APP_PLIST"; \
+	  plutil -replace CFBundleVersion -string "$$BUILD_NUM" "$$APP_PLIST"; \
+	  echo "    - CFBundleShortVersionString = $(VERSION)"; \
+	  echo "    - CFBundleVersion = $$BUILD_NUM"; \
+	  codesign --force --sign - "$$APP" 2>/dev/null || true; \
+	fi; \
 	echo "==> Building volicon..."; \
 	ICONSET="$(BUILD_DIR)/volicon.iconset"; \
 	mkdir -p $$ICONSET; \

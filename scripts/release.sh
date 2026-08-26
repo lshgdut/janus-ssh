@@ -70,6 +70,31 @@ if [ -d "$FRAMEWORKS_SRC" ]; then
   done
 fi
 
+echo "==> Bumping $APP_NAME to $VERSION in built .app..."
+# Info.plist 里 CFBundleShortVersionString 在源文件写死(0.1.1)—— xcodebuild
+# 不会替我们改 VERSION,产物 .app 里"关于"面板跟 .dmg 文件名对不上。
+# 直接 patch build 出来的 .app/Contents/Info.plist(不动源文件 — 那是仓库的
+# 事实,下一次 dev build 还得是 0.1.1 + 待 commit 的 bump)。
+# 同时 bump build number(CFBundleVersion)—— commit 次数 +1,跟 DMG 文件名解耦。
+APP_PLIST="$APP_PATH/Contents/Info.plist"
+if [ -f "$APP_PLIST" ]; then
+  BUILD_NUM=$(git rev-list --count HEAD 2>/dev/null || echo "1")
+  plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP_PLIST"
+  plutil -replace CFBundleVersion -string "$BUILD_NUM" "$APP_PLIST"
+  echo "    - CFBundleShortVersionString = $VERSION"
+  echo "    - CFBundleVersion = $BUILD_NUM"
+  # Info.plist 被 _CodeSignature/CodeResources 哈希锁定 — 改完必须 re-sign,
+  # 否则 codesign --verify 失败、Gatekeeper 拒签。
+  if [ -n "${CODE_SIGN_IDENTITY:-}" ] && [ "${CODE_SIGN_IDENTITY}" != "-" ]; then
+    codesign --force --sign "$CODE_SIGN_IDENTITY" --options runtime --timestamp \
+      "$APP_PATH" 2>/dev/null || true
+  else
+    # ad-hoc 路径,不必 timestamp/runtime,但 force 重签让 _CodeSignature
+    # 重新 hash Info.plist
+    codesign --force --sign - "$APP_PATH" 2>/dev/null || true
+  fi
+fi
+
 echo "==> Zipping..."
 # 用绝对路径,$APP_PATH 已经是 find 拿到的完整路径 — 之前 cd $BUILD_DIR + basename
 # 会拼成 "<build>/JanusSSH.app",但 .app 实际在
