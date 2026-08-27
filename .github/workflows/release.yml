@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # fetch tags — git-cliff 要遍历 git history,默认 shallow checkout 会
           # 拿不到 v0.1.0 / v0.1.1 / v0.2.0 等历史 tag。
@@ -65,7 +65,7 @@ jobs:
     needs: release
     if: github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: lshgdut/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
