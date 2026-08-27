@@ -101,6 +101,30 @@ echo "==> Zipping..."
 # "<build>/Build/Products/Release/JanusSSH.app",ditto 报 "Cannot get real path"。
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$BUILD_DIR/$APP_NAME-$VERSION.zip"
 
+# CHANGELOG.md — git-cliff 接管,从 Conventional Commits 自动生成。
+# 这一步放在 zip 之后 + notary 之前:CHANGELOG 是 git-tracked source of truth,
+# 跟 notary / DMG 产物无关 — notary 失败不应该阻止 CHANGELOG 自动 commit。
+# 默认不动(`UPDATE_CHCHANGELOG` 未设)— 跟 CONTRIBUTING.md 里 maintainer 手动维护
+# 的习惯一致;`UPDATE_CHCHANGELOG=1` 显式触发 auto-write。
+if [ "${UPDATE_CHANGELOG:-0}" = "1" ]; then
+  echo "==> Regenerating CHANGELOG.md via git-cliff..."
+  if ! command -v git-cliff >/dev/null 2>&1; then
+    echo "⚠️  git-cliff not installed; skipping CHANGELOG auto-update"
+  else
+    PREV_TAG=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || true)
+    if [ -z "$PREV_TAG" ]; then
+      echo "⚠️  no previous tag found; can't compute range"
+    else
+      git cliff --tag "$PREV_TAG..HEAD" --topo-order > CHANGELOG.md
+      git add CHANGELOG.md
+      if ! git diff --cached --quiet -- CHANGELOG.md; then
+        git commit -m "🔖 chore(release): update CHANGELOG for v$VERSION"
+      fi
+      echo "    CHANGELOG.md updated for v$VERSION"
+    fi
+  fi
+fi
+
 # 3. Notarize — 只在 KEYCHAIN_PROFILE 已设置时跑。
 # 默认(ad-hoc 本地构建)跳过 — 没有 Apple notary 凭据,且 ad-hoc 产物也
 # 本来就需要 notarization 才能分发给用户。真发布前 export KEYCHAIN_PROFILE
@@ -195,35 +219,6 @@ hdiutil convert "$BUILD_DIR/$APP_NAME-$VERSION.dmg" -format UDZO -ov \
 mv "$BUILD_DIR/$APP_NAME-$VERSION-UDZO.dmg" "$BUILD_DIR/$APP_NAME-$VERSION.dmg"
 
 rm -f "$VOLICON"
-
-echo ""
-
-# 6. CHANGELOG.md — git-cliff 接管,从 Conventional Commits 自动生成。
-#    真发版用 `git cliff --tag v$VERSION..HEAD` 写盘 + commit;
-#    本脚本默认不动 CHANGELOG.md(`--tag v$PREV..HEAD --bump`) 免得
-#    跟人手工编辑的 CHANGELOG 冲突。如果环境明确设了
-#    `UPDATE_CHANGELOG=1` 才走 auto-write — 跟 docs/release 文档里
-#    "Maintainer releases" 步骤的 hard rule "1. 更新 CHANGELOG.md"
-#    一致:默认 maintainer 手动维护,auto 只在显式要求时介入。
-if [ "${UPDATE_CHANGELOG:-0}" = "1" ]; then
-  echo "==> Regenerating CHANGELOG.md via git-cliff..."
-  if ! command -v git-cliff >/dev/null 2>&1; then
-    echo "⚠️  git-cliff not installed; skipping CHANGELOG auto-update"
-  else
-    PREV_TAG=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || true)
-    if [ -z "$PREV_TAG" ]; then
-      echo "⚠️  no previous tag found; can't compute range"
-    else
-      git cliff --tag "$PREV_TAG..HEAD" --bump "$VERSION" --topo-order \
-        > CHANGELOG.md
-      git add CHANGELOG.md
-      if ! git diff --cached --quiet -- CHANGELOG.md; then
-        git commit -m "🔖 chore(release): update CHANGELOG for v$VERSION"
-      fi
-      echo "    CHANGELOG.md updated for v$VERSION"
-    fi
-  fi
-fi
 
 echo ""
 echo "✅ Release artifacts:"
