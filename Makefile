@@ -26,6 +26,9 @@ help:
 	@echo "  make build       Debug 编译(开发用,不产 DMG)"
 	@echo "  make test        跑 engine 的 Swift 测试"
 	@echo ""
+	@echo "  make changelog   git-cliff 跑 CHANGELOG.md 更新(需 git-cliff 安装)"
+	@echo "                   — 跑 --tag v0.2.0..HEAD 自动追加新段"
+	@echo ""
 	@echo "  make release     A 路径:跑 scripts/release.sh \$$VERSION,完整流程"
 	@echo "                     (ad-hoc 默认 / Developer ID + 公证 export 三个 env)"
 	@echo "  make dmg         B 路径 1:手动 multi-step DMG,带 volicon + README + .command"
@@ -53,6 +56,43 @@ build:
 .PHONY: test
 test:
 	cd $(ENGINE) && swift test --filter "$(T)"
+
+# —— Changelog 通过 git-cliff 自动生成 ——————————————————————————
+# `cliff.toml` 配置了 emoji-prefix + Conventional Commits 的解析器。
+# 这里写盘前自动 git add + commit,跟仓库的"🔖 chore(release)"风格保持一致。
+#
+# 默认跟最新已存在 tag 起头(range = latest tag..HEAD),用于 maintainer 在
+# 发版前"挤一遍未发布段"。
+# 给 VERSION=0.3.0 时,走 --tag v0.2.0..v0.3.0 — 假设你事先已 git tag v0.3.0,
+# 然后跑这条命令 — cliff 写出 v0.3.0 段。
+# 保持 simple:git-cliff 自己不出"写出新版本"动作,bump 走 git tag。
+.PHONY: changelog
+chlog:
+	@command -v git-cliff >/dev/null 2>&1 || { \
+	  echo "❌ git-cliff 未装。运行:brew install git-cliff"; exit 1; \
+	}
+	@if [ -n "$(VERSION)" ]; then \
+	  RANGE="v$(VERSION)"; \
+	  if ! git rev-parse "v$(VERSION)" >/dev/null 2>&1; then \
+	    echo "❌ tag v$(VERSION) 不存在 — 先 git tag v$(VERSION) 然后再跑"; exit 1; \
+	  fi; \
+	else \
+	  PREV=$$(git describe --tags --abbrev=0 HEAD 2>/dev/null || echo ""); \
+	  if [ -z "$$PREV" ]; then \
+	    echo "❌ 没找到现有 tag,git-cliff 需要 range(给 VERSION=X.Y.Z 跑)"; exit 1; \
+	  fi; \
+	  RANGE="$$PREV..HEAD"; \
+	fi; \
+	echo "==> Regenerating CHANGELOG: $$RANGE"; \
+	git cliff --tag "$$RANGE" --topo-order > CHANGELOG.md; \
+	git add CHANGELOG.md; \
+	if git diff --cached --quiet -- CHANGELOG.md; then \
+	  echo "✓ CHANGELOG.md 没变化"; \
+	else \
+	  NEXT=$$(echo "$$RANGE" | awk -F. '{print $$NF}' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "next"); \
+	  git commit -m "🔖 chore(release): update CHANGELOG"; \
+	  echo "✓ CHANGELOG.md committed"; \
+	fi
 
 # —— A 路径:scripts/release.sh —完整 pipeline ——————————————
 .PHONY: release
@@ -183,4 +223,4 @@ clean:
 	@echo "✓ cleared $(BUILD_DIR)/"
 
 .DEFAULT_GOAL := help
-.PHONY: all build test release dmg dmg-quick clean
+.PHONY: all build test changelog release dmg dmg-quick clean

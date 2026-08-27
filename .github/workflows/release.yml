@@ -13,6 +13,31 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # fetch tags — git-cliff 要遍历 git history,默认 shallow checkout 会
+          # 拿不到 v0.1.0 / v0.1.1 / v0.2.0 等历史 tag。
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        run: brew install git-cliff
+
+      - name: Update CHANGELOG via git-cliff
+        # 只跑当有上一个 tag(不是 v0.1.0 这种 first release)。
+        # cliff.toml 里的 body / footer 模板 — 见仓库根 cliff.toml。
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          PREV=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || true)
+          if [ -z "$PREV" ]; then
+            echo "No previous tag — first release, skipping CHANGELOG regen"
+            exit 0
+          fi
+          echo "Regenerating CHANGELOG.md: $PREV..HEAD → v$VERSION"
+          git cliff --tag "$PREV..HEAD" --bump "$VERSION" --topo-order > CHANGELOG.md
+          git add CHANGELOG.md
+          if ! git diff --cached --quiet -- CHANGELOG.md; then
+            git commit -m "🔖 chore(release): update CHANGELOG for v${VERSION}"
+            git push origin "$GITHUB_REF_NAME"
+          fi
 
       - name: Import Notarization Profile
         run: |
