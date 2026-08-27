@@ -16,7 +16,7 @@ body = """
     {% for commit in commits %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
+            {{ commit.message | split(pat="\n", limit=1) | first | upper_first }}\
     {% endfor %}
 {% endfor %}
 """
@@ -48,8 +48,11 @@ commit_preprocessors = [
 # Parse commits according to the conventional commits specification.
 # See https://www.conventionalcommits.org
 conventional_commits = true
-# Exclude commits that do not match the conventional commits specification.
-filter_unconventional = true
+# filter_unconventional:false 让任何 commit(包括 typo commit 像 ":ch ...")
+# 走 "💼 Other" fall-through 而不是被 warn-and-skip。这跟仓库历史 commit
+# 风格相关 —— 几个 commit subject 实际是 conventional 但有 typo,cliff 2.x 的
+# regex parser 太严格,会全部 warn。这条 false 让它们进 Other 而不是丢。
+filter_unconventional = false
 # Require all commits to be conventional.
 # Takes precedence over filter_unconventional.
 require_conventional = false
@@ -57,6 +60,10 @@ require_conventional = false
 split_commits = false
 # An array of regex based parsers to modify commit messages prior to further processing.
 commit_preprocessors = [
+    # 截断 commit body — 只用 subject(第一行),不展开多行 commit message
+    # body 里的解释段不适合直接进 CHANGELOG(尤其是仓库 multi-paragraph
+    # commit message 的习惯),保留 subject 就够了。
+    { pattern = '\n.*$', replace = "" },
     # Replace issue numbers with link templates to be updated in `changelog.postprocessors`.
     #{ pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](<REPO>/issues/${2}))"},
     # Check spelling of the commit message using https://github.com/crate-ci/typos.

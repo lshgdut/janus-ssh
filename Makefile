@@ -67,7 +67,7 @@ test:
 # 然后跑这条命令 — cliff 写出 v0.3.0 段。
 # 保持 simple:git-cliff 自己不出"写出新版本"动作,bump 走 git tag。
 .PHONY: changelog
-chlog:
+changelog:
 	@command -v git-cliff >/dev/null 2>&1 || { \
 	  echo "❌ git-cliff 未装。运行:brew install git-cliff"; exit 1; \
 	}
