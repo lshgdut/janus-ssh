@@ -61,6 +61,27 @@ final class TunnelManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(terminates.count, 1, "restart should terminate at least once")
     }
 
+    func test_late_exit_from_previous_start_is_ignored() async throws {
+        let (mgr, fake) = makeManager()
+        let profile = makeProfile(name: "Production", alias: "production")
+        mgr.registerProfile(profile)
+
+        try await mgr.start(profileID: profile.id)
+        let oldHandle = await fake.handle(at: 0)
+        XCTAssertNotNil(oldHandle)
+
+        // 第二次 start 会启动一个新 generation,但不会取消旧的 observation task。
+        // 这正是需要覆盖的窗口:旧进程的 termination 事件晚于新进程启动。
+        try await mgr.start(profileID: profile.id)
+        oldHandle?.emit(.terminated(exitCode: -15, reason: .exited))
+
+        // 给旧 observation task 一点时间消费事件。
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let tunnel = mgr.tunnel(for: profile.id)
+        XCTAssertEqual(tunnel?.state, .running)
+        XCTAssertNil(tunnel?.lastError)
+    }
+
     func test_start_unknown_profile_throws() async {
         let (mgr, _) = makeManager()
         let unknownID = UUID()
@@ -240,10 +261,18 @@ final class TunnelManagerTests: XCTestCase {
 final actor FakeSSHProcessManager: SSHProcessManaging {
     private(set) var launches: [(UUID, SSHCommand)] = []
     private(set) var terminates: [(UUID, Bool)] = []
+    private var handles: [FakeSSHProcessHandle] = []
 
     func launch(profileID: UUID, command: SSHCommand) async throws -> SSHProcessHandle {
         launches.append((profileID, command))
-        return FakeSSHProcessHandle()
+        let handle = FakeSSHProcessHandle()
+        handles.append(handle)
+        return handle
+    }
+
+    func handle(at index: Int) -> FakeSSHProcessHandle? {
+        guard handles.indices.contains(index) else { return nil }
+        return handles[index]
     }
 
     func terminate(profileID: UUID, reason: TerminationReason) async {
@@ -269,11 +298,24 @@ final actor FakeSSHProcessManager: SSHProcessManaging {
 }
 
 final class FakeSSHProcessHandle: SSHProcessHandle, @unchecked Sendable {
+    private let stream: AsyncStream<SSHProcess.Event>
+    private let continuation: AsyncStream<SSHProcess.Event>.Continuation
+
+    init() {
+        var storedContinuation: AsyncStream<SSHProcess.Event>.Continuation?
+        self.stream = AsyncStream { storedContinuation = $0 }
+        self.continuation = storedContinuation!
+    }
+
     func events() async -> AsyncStream<SSHProcess.Event> {
-        AsyncStream { _ in }
+        stream
     }
 
     func terminate(gracefully: Bool) async throws {}
     func terminateNow() {}
     func pid() async -> Int32? { return 12345 }
+
+    func emit(_ event: SSHProcess.Event) {
+        continuation.yield(event)
+    }
 }

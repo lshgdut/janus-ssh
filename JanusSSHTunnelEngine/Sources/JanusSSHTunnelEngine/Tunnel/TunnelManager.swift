@@ -38,6 +38,25 @@ public final class TunnelManager {
     /// 退出码非 0)误判为 .error。用户 stop 后由 stop() 自己负责置 .stopped。
     private var userRequestedStop: Set<UUID> = []
 
+    /// 每个 profile 的进程"代际"计数器 — 每次 `start()` 成功 launch 一个新 SSH
+    /// 进程就 +1。observation 任务在订阅时把当前 generation 拍进闭包,
+    /// `handleProcessExit` 收到 `.terminated` 时如果 generation 对不上当前
+    /// 值,说明这个事件来自上一个进程(典型场景:`restart()` 之后老观察任务
+    /// 还没来得及被 cancel 时老进程死亡,事件被异步投递),直接丢弃。
+    ///
+    /// 没有这个保护,老进程的 `.terminated(code: -15)` 会:
+    ///   1. 把刚刚被新进程置为 `.running` 的 state 翻成 `.error` +
+    ///      `.sshExited(code: -15, ...)`;
+    ///   2. 若 profile 开了 autoReconnect,触发一次 reconnect;
+    ///   3. reconnect 的 `start()` 做端口检查时,新进程已经占着端口,
+    ///      `connect()` 成功 → 报 `.localPortUnavailable` →
+    ///      UI 显示 "Error · port X in use"。
+    ///
+    /// 即便 userRequestedStop 在 `restart()` 入口设了,`start()` 顶部又会
+    /// `remove(profileID)` 把它清掉,所以 generation 才是唯一贯穿整个窗口
+    /// 的护身符。
+    private var generations: [UUID: Int] = [:]
+
     public init(
         processManager: SSHProcessManaging,
         portChecker: PortChecking,
@@ -172,6 +191,14 @@ public final class TunnelManager {
         await logStore.append(profileID: profileID, kind: .app,
                               message: "Starting tunnel for profile \"\(profile.name)\"")
 
+        // Bump generation BEFORE launching the new process.
+        // The observation task captures this value and stamps every
+        // .terminated event with it; handleProcessExit compares against
+        // generations[profileID] to drop stale events from the previous
+        // process (see the field doc on `generations` for the full story).
+        let generation = (generations[profileID] ?? 0) + 1
+        generations[profileID] = generation
+
         do {
             let handle = try await processManager.launch(profileID: profileID, command: cmd)
             let pid = await handle.pid()
@@ -187,8 +214,9 @@ public final class TunnelManager {
                 await store.record(profileID: profileID, pid: pid)
             }
 
-            // 启动事件观察任务,转发到 logStore
-            observationTasks[profileID] = startObserving(profileID: profileID, handle: handle)
+            // 启动事件观察任务,转发到 logStore — generation 一起带进去
+            observationTasks[profileID] = startObserving(
+                profileID: profileID, handle: handle, generation: generation)
         } catch let spawnError as SSHProcessError {
             // SSH 进程 spawn 失败 — 把描述写到 lastError / log
             updateTunnel(id: profileID) { t in
@@ -241,6 +269,23 @@ public final class TunnelManager {
         guard profiles[profileID] != nil else {
             throw TunnelError.profileNotFound(profileID)
         }
+        // 1) 把老 observation 任务 cancel 掉。
+        //    startObserving 的 for-await 循环每轮会检查 Task.isCancelled,
+        //    cancel 之后老任务会立刻退出,不会再去消费老进程后续的
+        //    .terminated 事件 — 这是堵住 "race 老任务把 .running 翻成
+        //    .error" 的第一道闸。
+        observationTasks[profileID]?.cancel()
+        observationTasks.removeValue(forKey: profileID)
+
+        // 2) 设 userRequestedStop 作为 cancel 还没生效的窗口期的兜底。
+        //    极端情况下老任务的 .terminated 已经在 await self.handleProcessExit
+        //    的执行栈里跑了,cancel 抢不回来,这时 generation 还没被新 start()
+        //    bump 上去,但 userRequestedStop 是 set 的,handleProcessExit
+        //    会走 "用户主动 stop" 那条 early-return 分支,也不会脏写。
+        //    start() 顶部有 defense-in-depth 的 `userRequestedStop.remove`,
+        //    所以这个标志不会泄漏到下一次普通的 stop() 流程里。
+        userRequestedStop.insert(profileID)
+
         await processManager.terminate(profileID: profileID, reason: .userRequested)
         updateTunnel(id: profileID) { t in
             t.state = .stopping
@@ -345,8 +390,12 @@ public final class TunnelManager {
         tunnels[id] = t
     }
 
-    private func startObserving(profileID: UUID, handle: SSHProcessHandle) -> Task<Void, Never> {
-        // 返回 Task 句柄,让 unregisterProfile 能 cancel
+    private func startObserving(
+        profileID: UUID,
+        handle: SSHProcessHandle,
+        generation: Int
+    ) -> Task<Void, Never> {
+        // 返回 Task 句柄,让 unregisterProfile / restart 能 cancel
         return Task { [logStore] in
             let stream = await handle.events()
             for await event in stream {
@@ -365,8 +414,13 @@ public final class TunnelManager {
                                               message: String(line), level: .warn)
                     }
                 case .terminated(let code, let reason):
+                    // 把订阅时拍下的 generation 一并交给 handleProcessExit,
+                    // 用来甄别老进程留下的过期事件(详见 `generations` 字段注释)。
                     await self.handleProcessExit(
-                        profileID: profileID, code: code, reason: reason)
+                        profileID: profileID,
+                        code: code,
+                        reason: reason,
+                        generation: generation)
                     return
                 }
             }
@@ -376,8 +430,24 @@ public final class TunnelManager {
     private func handleProcessExit(
         profileID: UUID,
         code: Int32,
-        reason: SSHProcess.ProcessEndedReason
+        reason: SSHProcess.ProcessEndedReason,
+        generation: Int
     ) async {
+        // 丢弃老进程留下的过期 .terminated 事件。
+        // 典型场景:`restart()` 里老 SSH 进程被 SIGTERM,
+        // 它的 observation 任务(订阅老 generation)被 cancel 之前,
+        // 死亡事件已经异步投递到 handleProcessExit;此时新 SSH 进程
+        // 已经被 start() 拉起,`generations[profileID]` 也已经 bump。
+        // 不做这个 guard,老进程的 "exit code -15" 会把刚刚置为
+        // .running 的 state 翻成 .error,后续再触发 autoReconnect,
+        // reconnect 里的端口检查命中"新进程正在 listen" → 报
+        // .localPortUnavailable → UI 显示 "port in use"。
+        //
+        // 注意 guard 必须放在所有 state-mutating 操作之前 — 包括
+        // 下面那个 `userRequestedStop.remove` / `updateTunnel` /
+        // `pidStore.remove`,否则还是会脏写。
+        guard generations[profileID] == generation else { return }
+
         // 任何退出路径(用户主动 / 进程自然死)都从持久化 PID 列表里清掉,
         // 否则 App 重启时 sweep 会误杀还在运行的合法 SSH。
         if let store = pidStore {

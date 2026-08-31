@@ -35,7 +35,10 @@ public struct ProfileValidator: Sendable {
         }
 
         // 2. sshHostAlias
-        if !knownHosts.contains(profile.sshHostAlias) {
+        // 空 set 表示调用方没有可用的 SSH config provider(例如 preview /
+        // 运行时未注入 provider)。此时编辑器侧已保证 alias 合法,不能把
+        // "未知"误判成"~/.ssh/config 中不存在该 host"。
+        if !knownHosts.isEmpty && !knownHosts.contains(profile.sshHostAlias) {
             issues.append(ValidationIssue(
                 severity: .error,
                 message: "SSH host '\(profile.sshHostAlias)' is not in ~/.ssh/config.",
