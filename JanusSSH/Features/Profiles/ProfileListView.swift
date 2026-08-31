@@ -342,20 +342,17 @@ private struct ProfileCard: View {
     // MARK: - forwards list
 
     private var forwardsList: some View {
+        // 回到表格展示:一行一条 forward,直接显示端口映射 + label pill。
+        // 之前 FlowLayout 装所有 label pill 的方案 hover tooltip 在 macOS 上
+        // 一直不理想(系统 tooltip 被截断 / 自绘 overlay 撞卡片边缘) —
+        // 既然 port 信息本来就是用户看 profile 时需要知道的,直接展示更清晰。
         VStack(spacing: 4) {
-            ForEach(Array(profile.forwards.prefix(3).enumerated()), id: \.element.id) { _, fwd in
+            ForEach(profile.forwards) { fwd in
                 ForwardLine(forward: fwd, isError: isError)
-            }
-            if profile.forwards.count > 3 {
-                HStack {
-                    Spacer()
-                    Text("+\(profile.forwards.count - 3) more")
-                        .font(.caption2).foregroundStyle(.tertiary)
-                }
-                .padding(.top, 2)
             }
         }
         .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.gray.opacity(0.06))
@@ -459,19 +456,70 @@ private struct ProfileCard: View {
 
 // MARK: - Forward line
 
+/// 一条 forward 的展示行 — 每个字段一个 Text + 固定 frame 宽度,
+/// 多行排列时各列天然对齐(本地主机 / 本地端口 / 远程主机 / 远程端口)。
+///
+/// 列宽选择:
+///   - hostWidth 90pt:装得下 "127.0.0.1" 还有 ~20pt buffer;
+///   - portWidth 50pt:右对齐 5 位端口(最大 65535)够用;
+///   - 比编辑器里的 200/100 窄一截,匹配卡片宽度。
+///
+/// 端口数字走 String(forward.localPort) — String() 不会走 LocalizedStringKey,
+/// 不会被 locale 加千分位("10,001" 之类)。
 private struct ForwardLine: View {
     let forward: PortForward
     let isError: Bool
 
+    /// 列宽常量 — 提出来便于一处调整。
+    private static let hostWidth: CGFloat = 60
+    private static let portWidth: CGFloat = 50
+
     var body: some View {
-        HStack(spacing: 8) {
-            Text("\(forward.localHost):\(forward.localPort) → \(forward.remoteHost):\(forward.remotePort)")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(isError ? Color.red : Color.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+        // 嵌套 HStack:
+        //   - 外层 spacing 12:local 组 / 箭头 / remote 组 / label 之间宽松,
+        //     把 "源 → 目标" 的方向感拉出来。
+        //   - 内层 spacing 2:host 和 port 紧凑,视觉上是一个 "address" 单位,
+        //     而不是两个独立字段。
+        HStack(spacing: 24) {
+            // LOCAL 组
+            HStack(spacing: 2) {
+                Text(verbatim: forward.localHost)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(isError ? Color.red : Color.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: Self.hostWidth, alignment: .leading)
+
+                Text(verbatim: String(forward.localPort))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(isError ? Color.red : Color.primary)
+                    .lineLimit(1)
+                    .frame(width: Self.portWidth, alignment: .trailing)
+            }
+
+            // 箭头 — 视觉锚点,跟两侧都拉开
+            Image(systemName: "arrow.right")
+                .foregroundStyle(.tertiary)
+                .font(.caption)
+
+            // REMOTE 组
+            HStack(spacing: 2) {
+                Text(verbatim: forward.remoteHost)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(isError ? Color.red : Color.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: Self.hostWidth, alignment: .leading)
+
+                Text(verbatim: String(forward.remotePort))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(isError ? Color.red : Color.primary)
+                    .lineLimit(1)
+                    .frame(width: Self.portWidth, alignment: .trailing)
+            }
+
+            // LABEL pill — 跟在 remote 组后面
             if let label = forward.label, !label.isEmpty {
-                // 标签用小 pill,跟正向行视觉绑定更紧 — 之前裸文字太安静
                 Text(label)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -482,6 +530,7 @@ private struct ForwardLine: View {
                     )
                     .lineLimit(1)
             }
+
             Spacer(minLength: 0)
         }
     }

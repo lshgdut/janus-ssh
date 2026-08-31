@@ -79,7 +79,7 @@ struct ProfileRunningView: View {
                         HStack(spacing: 8) {
                             Text(f.localEndpoint).font(.system(.body, design: .monospaced))
                             Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-                            Text("\(f.remoteHost):\(f.remotePort)")
+                            Text(verbatim: "\(f.remoteHost):\(f.remotePort)")
                                 .font(.system(.body, design: .monospaced))
                             if let label = f.label {
                                 Text(label)
