@@ -22,6 +22,14 @@ struct ProfileEditorView: View {
     @State private var draft: Profile
     @State private var issues: [ValidationIssue] = []
     @State private var currentStep: Int = 1
+    /// save() 在跑时为 true — 用来:
+    ///   1) 给 Save / Save & Stop / Save & Restart / Delete 按钮加 spinner
+    ///      并 disable,避免重复点击触发并发 restart;
+    ///   2) 关掉 .interactiveDismissDisabled,挡住 Cmd+W / 点关闭按钮;
+    ///   3) 关掉内容区的 hit testing,防止用户改 draft 触发再次校验。
+    @State private var isSaving: Bool = false
+    /// restart() 抛错时填 localizedDescription,bind 到 .alert 显示。
+    @State private var saveError: String?
     /// 区分新建/编辑 — 新建模式下隐藏 Delete Profile、Save&Stop、Save&Restart
     /// (这些操作只对已存在的 profile 才有意义)。
     let isNew: Bool
@@ -37,17 +45,41 @@ struct ProfileEditorView: View {
             Divider()
             HStack(spacing: 0) {
                 stepperSidebar
-                    .frame(width: 200)
+                    // 240 而非 200:让 "Port Forwards" 不再折行成两行。
+                    // 之前 200 时 "Port Forwards" 折行是因为内边距 + 数字徽章 + 间距
+                    // 把 label 压到 ~80pt,装不下 "Port Forwards" 整词。
+                    .frame(width: 240)
                     .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                    // 左侧 stepper 一起锁掉,避免用户边保存边点步骤切 section。
+                    .allowsHitTesting(!isSaving)
                 Divider()
                 content
+                    // 表单字段(textField / picker / stepper / row 增删)全部
+                    // 关掉 hit testing,否则 save() 期间用户改了 draft 会触发
+                    // 额外的 refresh() 校验,以及 onChange of draft 的状态抖动。
+                    .allowsHitTesting(!isSaving)
             }
             Divider()
             bottomBar
         }
-        .frame(minWidth: 880, minHeight: 640)
+        .frame(minWidth: 1180, minHeight: 640)
         .onChange(of: draft) { _, _ in refresh() }
         .onAppear { refresh() }
+        // save() 正在跑时禁止交互式关窗(Cmd+W / 红绿灯关闭按钮),
+        // 否则刚发起 restart 就被用户关掉,后台 SSH 进程失去引用关系,
+        // 复现"port in use"那类诡异状态。
+        .interactiveDismissDisabled(isSaving)
+        .alert(
+            "Save failed",
+            isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "Unknown error")
+        }
     }
 
     // MARK: - Top bar
@@ -73,21 +105,40 @@ struct ProfileEditorView: View {
                 Button("Cancel") { dismiss() }
                     .buttonStyle(.appSecondary)
                     .keyboardShortcut(.cancelAction)
+                    .disabled(isSaving)
                 // Save&Stop / Save&Restart 只对已存在的 profile 有意义 —
                 // 新建 profile 时 SSH tunnel 还没起,没东西可以 stop/restart。
                 // 新建模式下底部 Save 按钮承担提交职责,Cmd+Return 走它。
                 if !isNew {
-                    Button("Save & Stop") { save(restart: false) }
-                        .buttonStyle(.appSecondary)
-                        .disabled(!canSave)
-                    Button("Save & Restart") { save(restart: true) }
-                        .buttonStyle(.appPrimary)
-                        .keyboardShortcut(.return, modifiers: .command)
-                        .disabled(!canSave)
+                    Button {
+                        save(restart: false)
+                    } label: {
+                        SaveActionLabel(
+                            idle: "Save & Stop",
+                            progress: "Stopping…",
+                            isSaving: isSaving
+                        )
+                    }
+                    .buttonStyle(.appSecondary)
+                    .keyboardShortcut("s", modifiers: .command)
+                    .disabled(isSaving || !canSave)
+
+                    Button {
+                        save(restart: true)
+                    } label: {
+                        SaveActionLabel(
+                            idle: "Save & Restart",
+                            progress: "Restarting…",
+                            isSaving: isSaving
+                        )
+                    }
+                    .buttonStyle(.appPrimary)
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(isSaving || !canSave)
                 }
             }
         }
-        .padding(.horizontal, 24).padding(.vertical, 14)
+        .padding(.horizontal, 32).padding(.vertical, 14)
     }
 
     private var validationPill: some View {
@@ -119,6 +170,10 @@ struct ProfileEditorView: View {
     // MARK: - Stepper sidebar
 
     private var stepperSidebar: some View {
+        // 整体外侧 padding — 横 20 让 "基本信息" "Port Forwards" 不贴窗沿,
+        // 竖 16 维持原有节奏。必须挂在 VStack 外,否则写在闭包里会触发
+        // "Instance member 'padding' cannot be used on type 'View'" —
+        // 因为 .padding 是 view 实例方法,不能脱离具体 view 单独写。
         VStack(alignment: .leading, spacing: 0) {
             ForEach(steps, id: \.number) { step in
                 StepperItem(
@@ -130,6 +185,7 @@ struct ProfileEditorView: View {
             }
             Spacer()
         }
+        .padding(.horizontal, 24)
         .padding(.vertical, 16)
     }
 
@@ -156,7 +212,11 @@ struct ProfileEditorView: View {
                     section3.id(3)
                     section4.id(4)
                 }
-                .padding(32)
+                // 横向 56 / 纵向 32 — 第二轮放宽。40 仍然把 SSH HOST picker 挤到
+                // 右窗沿;56 后表单左侧多出 ~16pt 呼吸空间,右侧也彻底留白。
+                // 内部列宽不动 — 表格自然在左侧贴齐,右边留大空白,大气感出来。
+                .padding(.horizontal, 56)
+                .padding(.vertical, 32)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(Color(nsColor: .textBackgroundColor))
@@ -217,6 +277,8 @@ struct ProfileEditorView: View {
                     .frame(width: 200, alignment: .leading)
                 Text("REMOTE PORT")
                     .frame(width: 100, alignment: .leading)
+                Text("LABEL")
+                    .frame(width: 140, alignment: .leading)
                 Spacer()
             }
             .font(.caption2.weight(.medium))
@@ -317,18 +379,24 @@ struct ProfileEditorView: View {
                 }
                 .buttonStyle(.appSecondary)
                 .tint(.red)
+                .disabled(isSaving)
             }
 
             Button {
                 save(restart: false)
             } label: {
-                Text("Save").frame(minWidth: 60)
+                SaveActionLabel(
+                    idle: "Save",
+                    progress: "Saving…",
+                    minWidth: 60,
+                    isSaving: isSaving
+                )
             }
             .buttonStyle(.appPrimary)
             .keyboardShortcut(.return, modifiers: .command)
-            .disabled(!canSave)
+            .disabled(isSaving || !canSave)
         }
-        .padding(.horizontal, 24).padding(.vertical, 12)
+        .padding(.horizontal, 32).padding(.vertical, 14)
         .background(.regularMaterial)
     }
 
@@ -353,13 +421,67 @@ struct ProfileEditorView: View {
     }
 
     private func save(restart: Bool) {
-        Task {
-            await container.upsertProfile(draft)
-            if restart {
-                try? await container.tunnelManager.restart(profileID: draft.id)
+        // 同步守卫:SwiftUI 按钮被禁用了,但键盘快捷键在多事件并发时仍可能
+        // 撞进来(例如长按 Cmd+Return 触发多次),这里再挡一次。
+        guard !isSaving else { return }
+        isSaving = true
+
+        // @MainActor isolation:container / dismiss 都在主 actor 上,
+        // Task { @MainActor in ... } 让所有 state 写入都在主线程,
+        // 不会触发 SwiftUI 的 "Modifying state during view update" 警告。
+        Task { @MainActor in
+            defer { isSaving = false }
+            do {
+                await container.upsertProfile(draft)
+                if restart {
+                    // 之前用 try? 把错误吞了 — restart 失败(端口冲突 /
+                    // 进程被外部杀 / 配置错等)用户看不到任何提示,直接
+                    // dismiss 走人,回头只能去 profile 列表里看到 .error
+                    // 状态,体验很突兀。现在让错误冒到 .alert 上。
+                    try await container.tunnelManager.restart(profileID: draft.id)
+                }
+                dismiss()
+            } catch {
+                saveError = error.localizedDescription
             }
-            dismiss()
         }
+    }
+}
+
+// MARK: - Save action label
+//
+// 按钮 label 在 idle / progress 两种状态下用不同文案 + spinner。
+// 单独抽出来是因为它同时挂在 Primary / Secondary 两种 button style 上。
+//
+// 进度态下 .controlSize(.small) 的 ProgressView 直径 16pt,
+// 跟 32pt 高的按钮刚好居中,不会撑高 buttonRow。
+//
+// 注意:之前用过内部 @State isAnimating + .onAppear { isAnimating = true }
+// 的写法,导致 SaveActionLabel 一进屏幕就永远停在 progress 态
+// (isAnimating 永远不会变回 false),刚打开 editor 就看到所有保存
+// 按钮挂着 spinner,用户以为在 loading。改成接收父视图传入的
+// isSaving,label 状态完全由父视图驱动,不再有内部状态。
+private struct SaveActionLabel: View {
+    let idle: String
+    let progress: String
+    var minWidth: CGFloat? = nil
+    let isSaving: Bool
+
+    var body: some View {
+        // 用 ZStack 叠两个 label 而不是 if/else 切换,
+        // 这样按钮宽度取两者最大值,不会因文案变化发生"按钮宽度跳变"。
+        ZStack {
+            Text(idle)
+                .opacity(isSaving ? 0 : 1)
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(progress)
+            }
+            .opacity(isSaving ? 1 : 0)
+        }
+        .frame(minWidth: minWidth)
+        .animation(.easeInOut(duration: 0.15), value: isSaving)
     }
 }
 
@@ -473,7 +595,7 @@ private struct ForwardRow: View {
                 .font(.system(.body, design: .monospaced))
                 .frame(width: 200)
             // LOCALPORT — 右对齐数字
-            TextField("15432", value: $forward.localPort, format: .number)
+            TextField("15432", value: $forward.localPort, format: .number.grouping(.never))
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.leading)
                 .font(.system(.body, design: .monospaced))
@@ -488,11 +610,21 @@ private struct ForwardRow: View {
                 .font(.system(.body, design: .monospaced))
                 .frame(width: 200)
             // REMOTEPORT
-            TextField("5432", value: $forward.remotePort, format: .number)
+            TextField("5432", value: $forward.remotePort, format: .number.grouping(.never))
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.leading)
                 .font(.system(.body, design: .monospaced))
                 .frame(width: 100)
+            // LABEL — 可选,例如 envoy-admin / pg / etcd。
+            // 用 monospaced + 圆角边框跟端口字段视觉对齐;
+            // 不限 1 行也不报错 — 留空就是未标注,ProfileListView 会跳过。
+            TextField("envoy-admin", text: Binding<String>(
+                get: { forward.label ?? "" },
+                set: { newValue in forward.label = newValue.isEmpty ? nil : newValue }
+            ))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: 140)
             // Delete — 每条 forward 只留这一个 row 动作;
             // 复制整个 ssh 命令走底部 CommandPreview 的 Copy 按钮,
             // 单条 -L 参数复制用处不大(用户要复制也都是复制完整命令)。
