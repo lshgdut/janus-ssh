@@ -2,8 +2,15 @@ import SwiftUI
 import AppKit
 import JanusSSHTunnelEngine
 
-/// macOS MenuBarExtra popover(.window 模式)— 完全用 SwiftUI 自定义渲染,
-/// 对齐设计稿:深色 material、蓝 S 角标、profile 行带状态点和 hover 动作。
+/// macOS MenuBarExtra popover(.window 模式)— SwiftUI scene 自己渲染 panel,
+/// 内容是纯 SwiftUI 树:header + running profile 行 + actions,
+/// 对齐设计稿:蓝 S 角标、profile 行带状态点和 hover 动作。
+///
+/// 视觉:
+///   - 系统 panel 自带轻量半透明背景(浅/深模式都自动反色),不要再叠
+///     .background(.regularMaterial) — 双重材质会变灰蒙蒙。
+///   - 不画自定义外框圆角/stroke — MenuBarExtra 系统 panel 已经处理好。
+///   - 不加 .padding(4) — 系统 panel 自带 inset,再 pad 等于双重 padding。
 struct MenuBarView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.colorScheme) private var colorScheme
@@ -24,13 +31,12 @@ struct MenuBarView: View {
             actions
         }
         .frame(width: popoverWidth)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(.separator, lineWidth: 0.5)
-        )
-        .padding(4)  // 给 material 一点呼吸空间,让外框不贴边
+        // NSPopover 时代这里要 .background(.regularMaterial) + 自定义圆角 +
+        // stroke,因为 NSPopover 没有装饰。MenuBarExtra(.window) 是 SwiftUI scene,
+        // 系统已经渲染 panel 背景 + 圆角 + 边框,这里只管内容布局。
+        //
+        // 如果以后想强制某种颜色,加 `.background(Color(nsColor: .windowBackgroundColor))`
+        // 这类纯色;不要再叠 .regularMaterial —— 会跟系统材质打架变灰。
     }
 
     // MARK: - Header
@@ -129,20 +135,15 @@ struct MenuBarView: View {
                     NSApp.activate(ignoringOtherApps: true)
                     AppWindowFocus.focusMain()
                 }
-                // 焦点切到主窗口 — popover 不再有用,主动 dismiss 避免屏幕上
-                // 短暂同时有 menu + main 两个窗口。
-                container.menuBarController.dismissPopover()
+                // MenuBarExtra(.window) 在 focus 切到主窗口时自动 dismiss —
+                // 不用手动管 popover 生命周期。
             }
             // 用 \.openSettings — 之前 NSApp.sendAction(showSettingsWindow:)
             // 从 MenuBarExtra 触发不稳定。
             MenuBarItem(label: "Settings…", shortcut: "⌘,") {
                 openSettings()
-                // openSettings 立即触发 SwiftUI Window scene,但 SettingsWindow
-                // 实际浮现有一拍延迟。这里主动 dismiss popover,避免屏幕上短暂
-                // 同时有两个 menu / settings 浮窗,以及 popover 残留把后续事件
-                // 抢走的情况。
-                container.menuBarController.dismissPopover()
                 NSApp.activate(ignoringOtherApps: true)
+                // MenuBarExtra 在 Settings 窗口浮现后自动 dismiss。
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
                 // 之前 fire-and-forget Task — refresh() 抛异常被吞,~/.ssh/config
@@ -157,18 +158,18 @@ struct MenuBarView: View {
                         #endif
                     }
                 }
-                // 刷新是后台操作,用户大概率想看到反馈 — 关掉 popover 让主窗口
-                // 顶上来显示刷新的 hosts。
-                container.menuBarController.dismissPopover()
+                // 不主动关 popover — 用户想继续操作 menu bar 可以直接点,
+                // 想看主窗口刷新的 hosts 手动点别处即可。MenuBarExtra 的
+                // 自动 outside-click dismissal 跟之前 NSPopover 时代
+                // dismissPopover() 行为等价。
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
-                // 走 menuBarController.quit() — 它会显式拆 outside-click monitor +
-                // 关 popover 再 NSApp.terminate。原来这里直接 NSApp.terminate(nil),
-                // 依赖 outside-click monitor 副作用来 dismiss popover,但
-                // .applicationDefined + NSHostingController 组合下偶发 popover
-                // 残留,把 willTerminate 拖住,app 就不退出了。
-                container.menuBarController.quit()
+                // MenuBarExtra 是 SwiftUI scene,App 退出时系统自动清理。
+                // 直接 NSApp.terminate(nil) — 之前 NSPopover 时代需要先
+                // dismiss popover + 拆 monitor 是为了防 .applicationDefined
+                // 残留把 willTerminate 拖住,这套 hack 不再需要。
+                NSApp.terminate(nil)
             }
         }
     }
@@ -236,39 +237,48 @@ private struct MenuBarProfileRow: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        // 不用 `Button(action: performAction)` — 跟 MenuBarItem 同样的 SwiftUI
-        // Button + .applicationDefined NSPopover 不接事件问题,改用 .onTapGesture
-        // 走 SwiftUI gesture 系统。详见 MenuBarItem 注释。
-        HStack(spacing: 10) {
-            StatusBadge(state: tunnel.state, style: .compact)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(profile.name)
-                    // 设计稿:profile 名用 regular 字重,不要 medium/bold
-                    // 整体感觉更轻盈、更克制
-                    .font(.system(size: 12.5, weight: .regular))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(metadata)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            if hovering {
-                // pending 状态(action 已经在跑)显示 spinner,而不是再显示
-                // "Stop" / "Retry" —— 避免用户重复点击触发竞态。
-                if isPending {
-                    ProgressView()
-                        .controlSize(.small)
-                        .transition(.opacity)
-                } else if let label = actionLabel {
-                    Text(label)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(actionColor)
-                        .transition(.opacity)
+        // 切回 SwiftUI Button(action:) — NSPopover + .applicationDefined 时代
+        // Button action 不 fire 是因为 .applicationDefined 面板首次 click 被
+        // AppKit 抢做 key-window promotion。MenuBarExtra(.window) 的 panel
+        // 同样有这个坑,但已经通过 MenuBarWindowAccessor 在 view 进 tree 时
+        // 强制 makeKey 绕过 — Button 在 key panel 里能正常 fire,不需要再绕
+        // 回 HStack + .onTapGesture。
+        //
+        // .buttonStyle(.plain) 移除系统默认的蓝色 focus ring / 按下高亮,
+        // 由我们自己用 hoverHighlight + 不画 stroke 控制视觉。
+        Button(action: performAction) {
+            HStack(spacing: 10) {
+                StatusBadge(state: tunnel.state, style: .compact)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(profile.name)
+                        // 设计稿:profile 名用 regular 字重,不要 medium/bold
+                        // 整体感觉更轻盈、更克制
+                        .font(.system(size: 12.5, weight: .regular))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(metadata)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if hovering {
+                    // pending 状态(action 已经在跑)显示 spinner,而不是再显示
+                    // "Stop" / "Retry" —— 避免用户重复点击触发竞态。
+                    if isPending {
+                        ProgressView()
+                            .controlSize(.small)
+                            .transition(.opacity)
+                    } else if let label = actionLabel {
+                        Text(label)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(actionColor)
+                            .transition(.opacity)
+                    }
                 }
             }
         }
+        .buttonStyle(.plain)
         // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
         .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -285,18 +295,15 @@ private struct MenuBarProfileRow: View {
             Task { @MainActor in hovering = h }
         }
         .animation(.easeOut(duration: 0.08), value: hovering)
-        // .allowsHitTesting(isPending ? false : true) 替代 .disabled — .disabled
-        // 在某些 popover 上下文里会切掉 SwiftUI gesture 通道,改用 hit-testing
-        // gate 保留 onTapGesture 一定能收事件。
-        .allowsHitTesting(!isPending)
-        .onTapGesture {
-            if !isPending {
-                performAction()
-            }
-        }
-        // SwiftUI Button 之前自动加 .isButton trait,onTapGesture 自己不加 —
-        // VoiceOver 之前读 "Quit, button" 现在只读 "Quit"。补回来。
-        .accessibilityAddTraits(.isButton)
+        // pending 状态(.starting/.reconnecting/.stopping)禁用整个 Button —
+        // 之前用 .allowsHitTesting(!isPending) 是因为 .disabled 在 NSPopover
+        // 上下文里会切掉 SwiftUI gesture 通道。MenuBarExtra + Button 路径
+        // 下 .disabled 是安全的,用标准 API 取代手写 hit-test gate。
+        .disabled(isPending)
+        // Button 自动加 .isButton trait,VoiceOver 现在能正确读
+        // "Production, button"。显式 .accessibilityLabel 仍需要 — Button
+        // 默认读 HStack 第一个 Text(profile.name),已经是 profile 名,但
+        // 显式声明让 a11y 行为对将来重构更鲁棒。
         .accessibilityLabel(Text(profile.name))
     }
 
@@ -400,20 +407,26 @@ private struct MenuBarItem: View {
     @State private var hovering = false
 
     var body: some View {
-        // 不用 `Button(action: action)` — .applicationDefined NSPopover + SwiftUI
-        // Button 这个组合下,Button 内部的 tap-gesture hit-test 在某些 macOS
-        // 版本不接事件(实测监测到 clicks 落进 popover window,event.window match,
-        // 但 Button action closure 永远不 fire — /tmp/janus-debug log 印证)。
-        // 改用纯 HStack + .onTapGesture 走 SwiftUI gesture 系统,这个路径稳。
-        HStack {
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.primary)
-            Spacer()
-            Text(shortcut)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.tertiary)
+        // 切回 SwiftUI Button(action:) — NSPopover + .applicationDefined 时代
+        // Button action 不 fire 是因为 .applicationDefined 面板首次 click 被
+        // AppKit 抢做 key-window promotion。MenuBarExtra(.window) 同样有
+        // 这个坑,但已经通过 MenuBarWindowAccessor 在 view 进 tree 时强制
+        // makeKey 绕过 — Button 在 key panel 里能正常 fire。
+        //
+        // .buttonStyle(.plain) 去掉系统默认蓝色 focus ring / 按下高亮,
+        // 由 hoverHighlight 自己控制视觉。
+        Button(action: action) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(shortcut)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
         }
+        .buttonStyle(.plain)
         // 设计稿:menu item 上下 ~9pt 呼吸,与 profile 行保持节奏一致
         .padding(.horizontal, 14).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -422,12 +435,7 @@ private struct MenuBarItem: View {
         // 会自动按 View 的实际尺寸渲染,而不是 label 的尺寸
         .hoverHighlight(hovering)
         .onHover { hovering = $0 }
-        .onTapGesture {
-            action()
-        }
-        // 跟 MenuBarProfileRow 同一个 a11y 修复 — Button→onTapGesture 丢了
-        // .isButton trait,VoiceOver 之前会读 "Open Application, button"。
-        .accessibilityAddTraits(.isButton)
+        // Button 自动加 .isButton trait,VoiceOver 现在能读 "Open Application, button"。
     }
 }
 // 在 Xcode canvas 里直接预览 MenuBar 效果,改 padding / 字号 / hover 立刻看到反馈,

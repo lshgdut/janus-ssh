@@ -30,15 +30,6 @@ final class AppContainer {
     let notificationManager: NotificationManager
     let lifecycleManager: AppLifecycleManager
     let themeController: ThemeController
-    /// 移到容器里,MenuBarView 可以 @Environment 取到,Quit 走 menuBarController.quit()
-    /// 显式 dismiss popover + 拆 outside-click monitor 再 terminate —
-    /// 否则 .applicationDefined popover 残留会卡 willTerminate,app 不退出。
-    ///
-    /// IUO 而非 let — Swift 不允许 init() 里把 self 传给 MenuBarController
-    /// (那时 menuBarController 自己还没初始化,所有 stored property 都得先
-    /// 赋值完才能用 self)。改成 IUO + bootstrap() 里赋值,逻辑等价,
-    /// 实际访问永远拿到非空值。
-    private(set) var menuBarController: MenuBarController!
 
     private(set) var profiles: [Profile] = []
 
@@ -111,18 +102,10 @@ final class AppContainer {
         self.lifecycleManager = lifecycleManager
         self.themeController = themeController
         self.pidStore = pidStore
-        // menuBarController 在 bootstrap() 里赋值 — 见上方 IUO 注释
-    }
-
-    /// bootstrap 阶段补一刀 — 拿到完整 container 后构造 menuBarController,
-    /// Swift 不允许 init 里 self 互引,只能拆成两步。
-    private func wireMenuBarController() {
-        self.menuBarController = MenuBarController(container: self)
     }
 
     static func bootstrap() -> AppContainer {
         let container = AppContainer()
-        container.wireMenuBarController()
         Task { await container.bootstrap() }
         return container
     }
