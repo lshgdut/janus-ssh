@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		0FE61473E8CEE2B2BEF90785 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */; };
-		97E59E24016325A97D789B1F /* ProfileEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A6C5D4C98BC5AAA80CA9AA /* ProfileEditorWindow.swift */; };
 		15A6AFAEA1D907442C3DF4B7 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A30CFA56331C20569CC5C4 /* AppContainer.swift */; };
 		15DC2038A18488D695F92105 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */; };
 		1B4DE2EDC706E9A4CA3EF55C /* JanusSSH.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = 76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */; };
@@ -25,12 +24,13 @@
 		917A65880104ADB60F0C12AC /* JanusSSHTunnelEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B09346A45BCE50DAF5B97C30 /* JanusSSHTunnelEngine */; };
 		ABA5864FDE335C485EA1D70F /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F6C49E4434E4AB56F89617A9 /* Info.plist */; };
 		B2BB224B7082EA7C73CB5BC8 /* SSHHostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */; };
+		B7E5A0B11A1A1A1A1A1A1A01 /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */; };
 		CAFE000000000000000B0001 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0001 /* AppColors.swift */; };
 		CAFE000000000000000B0002 /* AppFonts.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0002 /* AppFonts.swift */; };
 		CAFE000000000000000B0003 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0003 /* AppTheme.swift */; };
 		CAFE000000000000000B0010 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0010 /* StatusBadge.swift */; };
 		CAFE000000000000000B0011 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0011 /* EmptyStateView.swift */; };
-		B7E5A0B11A1A1A1A1A1A1A01 /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */; };
+		CAFE000000000000000B0012 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0012 /* FlowLayout.swift */; };
 		CAFE000000000000000B0020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAFE000000000000000A0020 /* Assets.xcassets */; };
 		D0F2F68A95B3C045FBED5C5A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9234CF2D35FA4A63E2A23F87 /* RootView.swift */; };
 		D5E806ECBD7133C2A1C3F65E /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9482A684D424C97D09E03615 /* SettingsManager.swift */; };
@@ -41,7 +41,6 @@
 		1397F81873971FF1B1FB6A06 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		153A0EC53280E6A2A8ADD67B /* TunnelLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelLogView.swift; sourceTree = "<group>"; };
 		2870B48F8EBE3F004621ABDB /* ProfileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorView.swift; sourceTree = "<group>"; };
-		E1A6C5D4C98BC5AAA80CA9AA /* ProfileEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileEditorWindow.swift; sourceTree = "<group>"; };
 		319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRunningView.swift; sourceTree = "<group>"; };
 		60D5DBD86BDCE8516D98E5EC /* ProfileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileListView.swift; sourceTree = "<group>"; };
 		76BD4D6B49A590282F3114B6 /* JanusSSH.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JanusSSH.entitlements; sourceTree = "<group>"; };
@@ -50,13 +49,14 @@
 		9482A684D424C97D09E03615 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		9F3CC3F70FAC64657D9C6E5C /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		A6404DA58F428DF9DA54D366 /* JanusSSHApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JanusSSHApp.swift; sourceTree = "<group>"; };
+		B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonStyles.swift; sourceTree = "<group>"; };
 		B8A30CFA56331C20569CC5C4 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0001 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0002 /* AppFonts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFonts.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0003 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0010 /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0011 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
-		B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonStyles.swift; sourceTree = "<group>"; };
+		CAFE000000000000000A0012 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		CAFE000000000000000A0020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CFF8E7CC625AC5F03E2E7A1A /* AppLifecycleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleManager.swift; sourceTree = "<group>"; };
 		CFF8E7CC625AC5F03E2E7A1B /* ThemeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeController.swift; sourceTree = "<group>"; };
@@ -185,6 +185,7 @@
 			children = (
 				CAFE000000000000000A0010 /* StatusBadge.swift */,
 				CAFE000000000000000A0011 /* EmptyStateView.swift */,
+				CAFE000000000000000A0012 /* FlowLayout.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -312,6 +313,7 @@
 				CAFE000000000000000B0003 /* AppTheme.swift in Sources */,
 				CAFE000000000000000B0010 /* StatusBadge.swift in Sources */,
 				CAFE000000000000000B0011 /* EmptyStateView.swift in Sources */,
+				CAFE000000000000000B0012 /* FlowLayout.swift in Sources */,
 				B7E5A0B11A1A1A1A1A1A1A01 /* ButtonStyles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -346,12 +348,14 @@
 				GCC_NO_COMMON_BLOCKS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = JanusSSH;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.3.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.lshgdut.janus-ssh";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -447,12 +451,14 @@
 				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = JanusSSH;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.3.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.lshgdut.janus-ssh";
