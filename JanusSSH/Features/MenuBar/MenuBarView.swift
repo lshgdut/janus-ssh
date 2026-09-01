@@ -15,6 +15,18 @@ struct MenuBarView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
+
+    /// 强制 MenuBarExtra panel 在出场时 grab focus — 让 NSPanel 提前变 key,
+    /// 绕过 `becomesKeyOnlyOnUserAction = true` 那个"首 click 被 AppKit 抢做
+    /// key-window promotion"的坑。纯 SwiftUI focus 路径,不需要 NSViewRepresentable
+    /// 跨进 AppKit 调 makeKey。
+    ///
+    /// onAppear 里 dispatch 到下一个 runloop tick 才 grab focus — 跟 view
+    /// 进 tree 时撞 layout pass 会触发 AppKit 警告("layoutSubtreeIfNeeded
+    /// recursion")。async 一次把 focus 推到下一个 tick,layout 阶段过了再
+    /// 升 key,稳。
+    @FocusState private var isMenuFocused: Bool
 
     private let popoverWidth: CGFloat = 320
 
@@ -31,12 +43,24 @@ struct MenuBarView: View {
             actions
         }
         .frame(width: popoverWidth)
+        // popover 底部 padding。之前没有任何 bottom padding,Quit row
+        // 贴在 popover 最底边,视觉上"贴边"看着急。给底部 8pt 留白,
+        // 让 panel 有呼吸空间,跟 macOS 系统 menu / popover 视觉一致。
+        .padding(.bottom, 8)
         // NSPopover 时代这里要 .background(.regularMaterial) + 自定义圆角 +
         // stroke,因为 NSPopover 没有装饰。MenuBarExtra(.window) 是 SwiftUI scene,
         // 系统已经渲染 panel 背景 + 圆角 + 边框,这里只管内容布局。
         //
         // 如果以后想强制某种颜色,加 `.background(Color(nsColor: .windowBackgroundColor))`
         // 这类纯色;不要再叠 .regularMaterial —— 会跟系统材质打架变灰。
+        .focusable()
+        .focused($isMenuFocused)
+        .focusEffectDisabled()
+        .onAppear {
+            DispatchQueue.main.async {
+                isMenuFocused = true
+            }
+        }
     }
 
     // MARK: - Header
@@ -131,19 +155,26 @@ struct MenuBarView: View {
             // 没在 Info.plist 注册,NSWorkspace.open 静默失败。
             //
             MenuBarItem(label: "Open Application", shortcut: "⌘1") {
-                Task { @MainActor in
-                    NSApp.activate(ignoringOtherApps: true)
-                    AppWindowFocus.focusMain()
-                }
-                // MenuBarExtra(.window) 在 focus 切到主窗口时自动 dismiss —
-                // 不用手动管 popover 生命周期。
+                // SwiftUI 部分:openWindow(id: "main") 创建或前置主 Window scene。
+                openWindow(id: "main")
+                // AppKit 兜底:openWindow 在 MenuBarExtra 上下文里只 bring
+                // window to front,**不负责 activate app** — 跨进程/同进程
+                // 抢焦点的能力 SwiftUI 没暴露等价 API,只有 NSApp.activate。
+                // 不加这一行的话,主窗口即使被前置,系统仍认为 menu bar
+                // app 是 active,主窗口不能正常收事件。跨 app 切到 dock 后
+                // 看到的就是"主界面在背后不响应点击"。
+                NSApp.activate(ignoringOtherApps: true)
+                // 关掉 MenuBarExtra popover — SwiftUI 没暴露 programmatic
+                // dismiss,AppKit 找这个 NSPanel orderOut。panel 特征:无
+                // title("Janus SSH" 留给主窗口)、是 NSPanel subclass。
+                MenuBarPopoverDismissal.dismissCurrent()
             }
             // 用 \.openSettings — 之前 NSApp.sendAction(showSettingsWindow:)
             // 从 MenuBarExtra 触发不稳定。
             MenuBarItem(label: "Settings…", shortcut: "⌘,") {
                 openSettings()
                 NSApp.activate(ignoringOtherApps: true)
-                // MenuBarExtra 在 Settings 窗口浮现后自动 dismiss。
+                MenuBarPopoverDismissal.dismissCurrent()
             }
             MenuBarItem(label: "Refresh SSH Config", shortcut: "⌘R") {
                 // 之前 fire-and-forget Task — refresh() 抛异常被吞,~/.ssh/config
@@ -158,10 +189,10 @@ struct MenuBarView: View {
                         #endif
                     }
                 }
-                // 不主动关 popover — 用户想继续操作 menu bar 可以直接点,
-                // 想看主窗口刷新的 hosts 手动点别处即可。MenuBarExtra 的
-                // 自动 outside-click dismissal 跟之前 NSPopover 时代
-                // dismissPopover() 行为等价。
+                // 不主动关 popover — Refresh 是后台操作,用户大概率想看主窗口刷新的 hosts
+                // 而不是继续操作 menu bar。SwiftUI MenuBarExtra 不会因为
+                // refresh 触发自动 dismiss,这里就保持 popover 开着 —
+                // 用户点 outside 区域或按 Esc 自己关。
             }
             rowDivider
             MenuBarItem(label: "Quit", shortcut: "⌘Q") {
@@ -246,6 +277,10 @@ private struct MenuBarProfileRow: View {
         //
         // .buttonStyle(.plain) 移除系统默认的蓝色 focus ring / 按下高亮,
         // 由我们自己用 hoverHighlight + 不画 stroke 控制视觉。
+        //
+        // 关键陷阱(同 MenuBarItem):padding / frame / contentShape / clipShape
+        // 必须 **放在 Button label 内部** — Button 按 label intrinsic size
+        // 算 hit area,外层的 frame 只是 proposal 不真正扩大点击区。
         Button(action: performAction) {
             HStack(spacing: 10) {
                 StatusBadge(state: tunnel.state, style: .compact)
@@ -277,16 +312,16 @@ private struct MenuBarProfileRow: View {
                     }
                 }
             }
+            // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // StatusBadge 的 breathing halo 在缩放到最大时直径 ~14.4px,
+            // 完全在 padding(横向 12 / 纵向 9)范围内。clipped() 作为兜底
+            // — 万一未来 halo scale 调大,不会盖到 hover 框外。
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())  // 整行可点,包括 Text 之间的空白
         }
         .buttonStyle(.plain)
-        // 设计稿:profile 行上下留 ~9pt 呼吸空间,不要挤
-        .padding(.horizontal, 12).padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // StatusBadge 的 breathing halo 在缩放到最大时直径 ~14.4px,
-        // 完全在 padding(横向 12 / 纵向 9)范围内。clipped() 作为兜底
-        // — 万一未来 halo scale 调大,不会盖到 hover 框外。
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .contentShape(Rectangle())  // 整行可点
         .hoverHighlight(hovering)
         // onHover 推到下一个 runloop tick — 鼠标若正好停在 row 上、popover
         // 一出现 .onHover 会立刻 fire,直接改 hovering 撞上 AppKit 的
@@ -415,6 +450,11 @@ private struct MenuBarItem: View {
         //
         // .buttonStyle(.plain) 去掉系统默认蓝色 focus ring / 按下高亮,
         // 由 hoverHighlight 自己控制视觉。
+        //
+        // 关键陷阱:padding / frame(maxWidth:) / contentShape 必须 **放在
+        // Button label 内部**,不能放在 Button 外面 — Button 用 label 的
+        // intrinsic size 算自己的 hit area,外层的 frame 只是 proposal,
+        // 不真正扩大点击区。结果就是只点文字能 fire,点 row 背景区没反应。
         Button(action: action) {
             HStack {
                 Text(label)
@@ -425,17 +465,45 @@ private struct MenuBarItem: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
+            // 设计稿:menu item 上下 ~9pt 呼吸,与 profile 行保持节奏一致
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())  // 整行可点,包括 Text 之间的空白
         }
         .buttonStyle(.plain)
-        // 设计稿:menu item 上下 ~9pt 呼吸,与 profile 行保持节奏一致
-        .padding(.horizontal, 14).padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        // hover 高亮作为 background — SwiftUI 的 .background
-        // 会自动按 View 的实际尺寸渲染,而不是 label 的尺寸
+        // hover 高亮作为 background — 放在 Button 外层,渲染按 Button 实际尺寸
         .hoverHighlight(hovering)
         .onHover { hovering = $0 }
         // Button 自动加 .isButton trait,VoiceOver 现在能读 "Open Application, button"。
+    }
+}
+
+// MARK: - MenuBarPopoverDismissal
+// SwiftUI MenuBarExtra(.window) **没有公开的 programmatic dismiss API** —
+// popover 只在用户点 outside 区域或按 Esc 时自动关,触发"打开主窗口"这类
+// focus 切换的 action 后不会自动收起。这是 SwiftUI 故意没暴露的,只能从
+// AppKit 这层手动关。
+//
+// 找到 MenuBarExtra 创建的 NSPanel 并 orderOut 即可。识别特征:
+//   - 是 NSPanel 子类(NSPopover / NSPanel 都是)
+//   - title 为空(主窗口 title = "Janus SSH" 排除掉)
+//   - 当前 visible(MenuBarExtra 关掉的 panel NSApp.windows 仍会列出,
+//     但 isVisible == false,跳过避免误关)
+//
+// 调用方在 openWindow / openSettings / 任何会切换 focus 的 action 后调
+// `dismissCurrent()`。
+@MainActor
+enum MenuBarPopoverDismissal {
+    static func dismissCurrent() {
+        for window in NSApp.windows {
+            // 排除主窗口:title 非空
+            guard window.title.isEmpty else { continue }
+            // 只要 NSPanel 子类(MenuBarExtra 的 panel 是 NSPanel)
+            guard window is NSPanel else { continue }
+            // 只关当前 visible 的 panel — 关掉的 panel 残留无所谓
+            guard window.isVisible else { continue }
+            window.orderOut(nil)
+        }
     }
 }
 // 在 Xcode canvas 里直接预览 MenuBar 效果,改 padding / 字号 / hover 立刻看到反馈,
