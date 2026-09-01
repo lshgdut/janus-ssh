@@ -192,20 +192,20 @@ dmg:
 	-volname "$(APP_NAME) $(VERSION)" -ov \
 	"$(BUILD_DIR)/$(APP_NAME)-$(VERSION).dmg"; \
 	echo "==> Embedding app + docs + volicon..."; \
-	MN T=$$(mktemp -d); \
-	hdiutil attach -nobrowse -mountpoint $$MN T \
+	DMG_MNT=$$(mktemp -d); \
+	hdiutil attach -nobrowse -mountpoint $$DMG_MNT \
 	"$(BUILD_DIR)/$(APP_NAME)-$(VERSION).dmg" >/dev/null 2>&1 && (\
-	cp -R "$$APP" "$$MN T/" && \
-	ln -s /Applications "$$MN T/Applications" && \
-	cp "$(CURDIR)/Resources/RELEASE-README.md" "$$MN T/" 2>/dev/null && \
-	cp "$(CURDIR)/Resources/install-unquarantine.command" "$$MN T/" 2>/dev/null && \
-	chmod +x "$$MN T/install-unquarantine.command" 2>/dev/null && \
-	cp $$VOLICON "$$MN T/.VolumeIcon.icns" && \
-	SetFile -a C "$$MN T/.VolumeIcon.icns" && \
-	SetFile -a C "$$MN T" && \
-	hdiutil detach $$MN T >/dev/null; \
+	cp -R "$$APP" "$$DMG_MNT/" && \
+	ln -s /Applications "$$DMG_MNT/Applications" && \
+	cp "$(CURDIR)/Resources/RELEASE-README.md" "$$DMG_MNT/" 2>/dev/null && \
+	cp "$(CURDIR)/Resources/install-unquarantine.command" "$$DMG_MNT/" 2>/dev/null && \
+	chmod +x "$$DMG_MNT/install-unquarantine.command" 2>/dev/null && \
+	cp $$VOLICON "$$DMG_MNT/.VolumeIcon.icns" && \
+	SetFile -a C "$$DMG_MNT/.VolumeIcon.icns" && \
+	SetFile -a C "$$DMG_MNT" && \
+	hdiutil detach $$DMG_MNT >/dev/null; \
 	); \
-	rmdir $$MN T; \
+	rmdir $$DMG_MNT; \
 	rm -rf $$ICONSET $$VOLICON; \
 	echo "==> Compressing to UDZO..."; \
 	hdiutil convert "$(BUILD_DIR)/$(APP_NAME)-$(VERSION).dmg" -format UDZO -ov \
