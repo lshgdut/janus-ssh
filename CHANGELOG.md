@@ -1,3 +1,13 @@
+## [0.3.1] - 2026-09-02
+
+### 🐛 Bug Fixes
+
+- 🐛 fix(xcodeproj): embed JanusSSHTunnelEngine framework in Contents/Frameworks
+
+### ⚙️ Miscellaneous Tasks
+
+- 🔖 chore(release): update CHANGELOG
+- 🔖 chore(release): bump 源 Info.plist 0.2.0 → 0.3.0 + Makefile VERSION 默认
 ## [0.3.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
