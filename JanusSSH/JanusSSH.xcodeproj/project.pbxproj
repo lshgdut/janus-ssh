@@ -22,6 +22,7 @@
 		75B8CAD57E29685459FDA358 /* ProfileRunningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319D0CEA7B9F2E9D1564C594 /* ProfileRunningView.swift */; };
 		873FFD3E4A215FC97224DDBF /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1397F81873971FF1B1FB6A06 /* NotificationManager.swift */; };
 		917A65880104ADB60F0C12AC /* JanusSSHTunnelEngine in Frameworks */ = {isa = PBXBuildFile; productRef = B09346A45BCE50DAF5B97C30 /* JanusSSHTunnelEngine */; };
+		AA00BB11CC22DD33EE44FF55 /* JanusSSHTunnelEngine in Embed Frameworks */ = {isa = PBXBuildFile; productRef = B09346A45BCE50DAF5B97C30 /* JanusSSHTunnelEngine */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		ABA5864FDE335C485EA1D70F /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F6C49E4434E4AB56F89617A9 /* Info.plist */; };
 		B2BB224B7082EA7C73CB5BC8 /* SSHHostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFDBB50FDF192AC87531B189 /* SSHHostManager.swift */; };
 		B7E5A0B11A1A1A1A1A1A1A01 /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E5A0B11A1A1A1A1A1A1A00 /* ButtonStyles.swift */; };
@@ -225,6 +226,7 @@
 				E7209FB05162B7572F88D05E /* Sources */,
 				29B2D46AA747A59804D46E1F /* Frameworks */,
 				66F8606E9F0A136E2228EBCB /* Resources */,
+				BB11CC22DD33EE44FF5566AA /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -286,6 +288,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BB11CC22DD33EE44FF5566AA /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				AA00BB11CC22DD33EE44FF55 /* JanusSSHTunnelEngine in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E7209FB05162B7572F88D05E /* Sources */ = {
