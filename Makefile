@@ -17,7 +17,7 @@ SCHEME         := JanusSSH
 PROJECT        := JanusSSH/JanusSSH.xcodeproj
 ENGINE         := JanusSSHTunnelEngine
 BUILD_DIR      := build
-VERSION        ?= 0.3.0
+VERSION        ?= 0.3.1
 
 # —— 默认 goal:help ——————————————————————————————————————————————
 .PHONY: help
