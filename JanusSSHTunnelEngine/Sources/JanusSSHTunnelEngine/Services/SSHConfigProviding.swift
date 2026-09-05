@@ -79,6 +79,12 @@ public final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
             }
             return chunks
         }
+        // 关键:任何错误抛出时都要 cancel 消费者 Task。否则:
+        // proc.start() 抛错(binary not found / sandbox 拒绝)时,SSHProcess
+        // 不会 spawn、handleTermination 不会触发、AsyncStream 永不结束,
+        // consumer Task 永远挂着,持续持有 stream continuation + 捕获的 chunks。
+        // 反复 Test 失败按钮点击会累积死 Task + 泄漏 heap。
+        defer { consumer.cancel() }
 
         try await proc.start()
         _ = try await proc.waitForExit()
@@ -135,6 +141,10 @@ public final class SSHConfigService: SSHConfigProviding, @unchecked Sendable {
             }
             return chunks
         }
+        // 关键:start() / waitForExit() 抛错时 cancel 消费者 Task,
+        // 防止 stream continuation 钉住 proc 引发 heap 泄漏。
+        // 详见 resolve() 的同类注释。
+        defer { consumer.cancel() }
 
         do {
             try await proc.start()

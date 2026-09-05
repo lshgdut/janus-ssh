@@ -242,8 +242,14 @@ public actor SSHProcess: SSHProcessHandle {
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
 
         broadcast(event)
-        // 标记 process 已退出
+        // 标记 process 已退出,并显式释放 Pipe 对象,让 4 个 FD
+        // (stdout/stderr 各自的 read+write handle)能被立刻关闭。
+        // 不置 nil 的话,即便 process = nil,Pipes 仍被 actor 钉住
+        // 直到 actor 自身释放 — 配合 SSHProcessManager.handles 清理
+        // 才算完整闭环。
         self.process = nil
+        self.stdoutPipe = nil
+        self.stderrPipe = nil
     }
 
     private func waitWithTimeout(_ seconds: TimeInterval, condition: () async -> Bool) async throws {

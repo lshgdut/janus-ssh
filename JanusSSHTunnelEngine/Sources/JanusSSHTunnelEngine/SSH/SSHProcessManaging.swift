@@ -65,6 +65,9 @@ public actor SSHProcessManager: SSHProcessManaging {
             livePIDs.withLock { $0.removeAll { $0 == pid } }
         }
         processes.removeValue(forKey: profileID)
+        // 关键:同步释放 SSHProcessHandle,避免 SSHProcess actor + 其
+        // stdoutPipe / stderrPipe + 4 个 FD 永久驻留字典直到下次 launch。
+        handles.removeValue(forKey: profileID)
     }
 
     public func terminateAll(reason: TerminationReason) async {

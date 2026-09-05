@@ -88,6 +88,14 @@ public final class TunnelManager {
     }
 
     public func unregisterProfile(id: UUID) {
+        // 先把当前可能正在运行的 SSH 子进程杀掉,否则:
+        // 1. 子进程持续占用 local forward 端口 → 下次同端口 profile 启动报 port in use
+        // 2. SSHProcessHandle 不会被释放 → SSHProcess + pipes + 4 FDs 永久泄漏
+        // fire-and-forget 与 reconnectController.cancel 保持同一风格:
+        // terminate 是 actor 方法必须 await,但 unregisterProfile 自身是同步 API,
+        // 不阻塞调用方;terminate 完成后会清掉 SSHProcessManager.handles[ID]。
+        Task { await processManager.terminate(profileID: id, reason: .userRequested) }
+
         profiles.removeValue(forKey: id)
         tunnels.removeValue(forKey: id)
         // 取消正在进行的重连 + 事件观察任务
