@@ -274,6 +274,7 @@ private struct ProfileCard: View {
                 actionButton
                 CardMenu(
                     onEdit: { openEditor() },
+                    onDuplicate: { openDuplicate() },
                     onDelete: { showDeleteConfirm = true }
                 )
             }
@@ -307,6 +308,13 @@ private struct ProfileCard: View {
 
     private func openEditor() {
         container.requestEdit(profile: profile)
+        openWindow(id: "profile-editor")
+    }
+
+    private func openDuplicate() {
+        // duplicateProfile 修改了 editingProfile + inFlightDuplicateNames,
+        // 跟 openEditor 一样由 View 层调 openWindow 触发 scene 挂载。
+        container.duplicateProfile(profile)
         openWindow(id: "profile-editor")
     }
 
@@ -639,6 +647,7 @@ private struct Separator: View {
 
 private struct CardMenu: View {
     let onEdit: () -> Void
+    let onDuplicate: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -647,6 +656,11 @@ private struct CardMenu: View {
                 onEdit()
             } label: {
                 Label("Edit Profile…", systemImage: "pencil")
+            }
+            Button {
+                onDuplicate()
+            } label: {
+                Label("Duplicate Profile…", systemImage: "doc.on.doc")
             }
             Divider()
             Button(role: .destructive) {
@@ -664,7 +678,7 @@ private struct CardMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Edit or delete this profile")
+        .help("Edit, duplicate, or delete this profile")
     }
 }
 // MARK: - Previews
