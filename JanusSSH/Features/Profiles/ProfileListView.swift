@@ -670,9 +670,9 @@ private struct CardMenu: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.callout)
+                .font(.body)
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
