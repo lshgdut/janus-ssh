@@ -52,3 +52,38 @@ public struct Profile: Codable, Identifiable, Hashable, Sendable {
         )
     }
 }
+
+// MARK: - Duplication
+
+extension Profile {
+    /// 复制当前 profile —— 新 UUID、新时间戳、name 加 " Copy" 后缀。
+    /// takenNames 用于避让: 如果 "Foo Copy" 已存在,自动改成 "Foo Copy 2"、"Foo Copy 3" ...
+    ///
+    /// 纯函数 — 调用方负责 register 到 TunnelManager + 通过 profileRepo 持久化。
+    /// forwards 是 value-type 数组,直接赋就完成独立复制,无需显式深拷贝。
+    public func duplicated(takenNames: Set<String>) -> Profile {
+        let baseName = "\(name) Copy"
+        let newName = Profile.uniqueCopyName(base: baseName, taken: takenNames)
+        let now = Date()
+        return Profile(
+            id: UUID(),
+            name: newName,
+            sshHostAlias: sshHostAlias,
+            forwards: forwards,
+            behavior: behavior,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
+    /// 找最小可用名字 — 不补洞,直接递增找最小未占用的数字。
+    /// 行为对齐 macOS Finder 的 "report (2).txt" 命名约定。
+    private static func uniqueCopyName(base: String, taken: Set<String>) -> String {
+        guard !taken.contains(base) else {
+            var n = 2
+            while taken.contains("\(base) \(n)") { n += 1 }
+            return "\(base) \(n)"
+        }
+        return base
+    }
+}
