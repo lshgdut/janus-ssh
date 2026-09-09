@@ -16,6 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Swift
+        # macos-14 runner ship Swift 5.10,但 Package.swift 写 swift-tools-version:6.0
+        # 解析不动。强制装 .swift-version 指定的 6.0.3,跟 macos-15/26 一致。
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0.3"
+
       - name: Select macOS version
         run: |
           if [ "${{ matrix.macos }}" = "macos-14" ]; then
@@ -40,6 +47,12 @@ jobs:
     needs: engine-test
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        # 跟 engine-test 保持版本一致,避免 xcodebuild 选 Swift 跟 Package 不同
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0.3"
 
       - name: Build App
         run: |
