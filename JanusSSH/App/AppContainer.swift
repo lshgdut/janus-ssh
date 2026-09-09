@@ -166,6 +166,13 @@ final class AppContainer {
     /// Delete / Save&Stop / Save&Restart 等只对已存在 profile 有意义的操作。
     private(set) var editingProfileIsNew: Bool = false
 
+    /// 跟踪未保存的 duplicate draft 名字 — 让用户连点 Duplicate 时
+    /// 每个 Editor 拿到不同名字,避免 race。但不预 append 到 profiles,
+    /// 让 Editor Save 才走 upsertProfile,关闭不保存 = 完全无副作用,
+    /// 跟 New Profile 流程对称。
+    /// closeEditor 会在编辑器关闭时清理对应条目。
+    private var inFlightDuplicateNames: Set<String> = []
+
     /// 从 ProfileListView / EmptyState / 新建菜单调用
     /// 设置后会通过 @Observable 通知 ProfileEditorWindow scene 打开
     func requestEdit(profile: Profile, isNew: Bool = false) {
@@ -174,8 +181,31 @@ final class AppContainer {
     }
 
     func closeEditor() {
+        // 释放未保存的 duplicate draft 名字 — 让后续 Duplicate 可复用
+        if editingProfileIsNew, let name = editingProfile?.name {
+            inFlightDuplicateNames.remove(name)
+        }
         editingProfile = nil
         editingProfileIsNew = false
+    }
+
+    /// 复制 source 并打开 Editor 让用户改名/调整端口后保存。
+    ///
+    /// 关键: copy 不会立即进入 `profiles` 数组,也不会注册到 TunnelManager —
+    /// 仅当用户在 Editor 里点 Save 走 upsertProfile 时才入库。这跟 New Profile
+    /// 流程(makeBlankDraftProfile → requestEdit → upsertProfile)对称,
+    /// 关掉 Editor 不保存 = 干净丢弃,无 ghost profile (Case 2)。
+    ///
+    /// inFlightDuplicateNames 保证连点 N 次产生 N 个不同名字 (Case 6)。
+    /// 源 profile 自己的名字从 taken 中排除 — 复制 "Production" 时, "Production"
+    /// 在 profiles 里也不该阻挡 "Production Copy" 生成。
+    func duplicateProfile(_ source: Profile) {
+        var taken = Set(profiles.map(\.name))
+        taken.subtract([source.name])
+        taken.formUnion(inFlightDuplicateNames)
+        let copy = source.duplicated(takenNames: taken)
+        inFlightDuplicateNames.insert(copy.name)
+        requestEdit(profile: copy, isNew: true)
     }
 
     /// 构造一份空白 Profile,作为"新建"的初始值。
