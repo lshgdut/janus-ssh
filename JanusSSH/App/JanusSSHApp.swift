@@ -84,6 +84,14 @@ struct JanusSSHApp: App {
         Binding(
             get: { container.settingsManager.state.general.showMenuBarIcon },
             set: { newValue in
+                // 源头 dedupe:SwiftUI binding reconciler / MenuBarExtra ↔ NSStatusItem
+                // 会在 MenuBarExtra(isInserted:) 反复求值时拿当前值回填 setter
+                // (即 "reconcile to current value")。如果不挡,即便值没变
+                // 也会 spawn Task → mutation(&state) → 触发 @Observable change
+                // → 又重渲染 → 又 reconcile … 形成无限循环,CPU 持续 100%+。
+                // 在源头比对当前值,值没变就早返回,彻底切断循环。
+                let current = container.settingsManager.state.general.showMenuBarIcon
+                guard newValue != current else { return }
                 Task { await container.settingsManager.update { $0.general.showMenuBarIcon = newValue } }
             }
         )
