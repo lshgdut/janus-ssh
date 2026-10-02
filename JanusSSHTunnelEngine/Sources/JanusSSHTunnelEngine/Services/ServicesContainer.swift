@@ -34,6 +34,15 @@ public final class ServicesContainer {
     // MARK: - Services (filled in by bootstrap)
 
     public private(set) var profileService: ProfileService?
+    /// Task 4 新增 — `TunnelManager` 内部仍走 `ManagedPIDStore`,
+    /// 这个 service 主要被 `ManagedPIDServiceImpl` 测试 + 未来 sweep 流程用。
+    /// Task 7 迁移 `TunnelManager` 到 `TunnelService` 时,ManagedPIDService
+    /// 会成为唯一的 sweep 入口。
+    public private(set) var managedPIDService: ManagedPIDService?
+    /// Task 4 新增 — 跟既有 `ReconnectController` 并存(后者由
+    /// `AppLifecycleManager` / 老的 `ReconnectControllerTests` 用)。
+    /// Task 7 删除 `ReconnectController`,把消费者迁到 `ReconnectService`。
+    public private(set) var reconnectService: ReconnectService?
 
     // MARK: - Init
 
@@ -52,8 +61,21 @@ public final class ServicesContainer {
     /// 构造 + 装载所有服务,并加载初始数据。
     /// 调用方在 AppContainer(@MainActor) 的 init 完成后立刻调用。
     public func bootstrap() async throws {
-        let service = ProfileServiceImpl(dao: profileDAO)
-        try await service.bootstrap()
-        self.profileService = service
+        let profileService = ProfileServiceImpl(dao: profileDAO)
+        try await profileService.bootstrap()
+        self.profileService = profileService
+
+        // Task 4 — ManagedPIDService:用 DAO + 默认 proc_pidpath / SIGKILL。
+        // 不在 bootstrap 时 sweep — sweep 由 `AppContainer.bootstrap()`
+        // 显式调用 `managedPIDService.sweepOrphans()`,因为它需要等
+        // `pidStore.load()` 完成后才执行(避免跟旧 store 路径 race)。
+        let managedPIDService = ManagedPIDServiceImpl(dao: managedPIDDAO)
+        self.managedPIDService = managedPIDService
+
+        // Task 4 — ReconnectService:用默认 BackoffPolicy + 简单 placeholder
+        // schedule。Task 7 把 ReconnectController 替掉之后,这里会接进
+        // 实际的 start() 重连触发。
+        let reconnectService = ReconnectServiceImpl(policy: .defaults)
+        self.reconnectService = reconnectService
     }
 }
