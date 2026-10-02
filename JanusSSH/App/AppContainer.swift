@@ -52,6 +52,11 @@ final class AppContainer {
 
     private(set) var profiles: [Profile] = []
 
+    /// 最近一次 ProfileService 写入错误(供 UI 横幅消费)。
+    /// Task 7 compat-shim 阶段:ProfileService 是写路径的 source of truth,
+    /// 写入失败时本地 `profiles` 数组不会更新,此字段保留错误供 UI 提示。
+    private(set) var lastProfileServiceError: AppError?
+
     init() {
         // 1. 构造 leaf dependencies
         let store = AtomicFileStore()
@@ -180,24 +185,44 @@ final class AppContainer {
     }
 
     func upsertProfile(_ profile: Profile) async {
+        // Task 7 compat-shim 阶段:ProfileService 是 source of truth。
+        // 写入失败时不要污染本地 `profiles`,错误暴露给 UI。
+        guard let service = services.profileService else { return }
+        do {
+            try await service.update(profile)
+            lastProfileServiceError = nil
+        } catch let error as AppError {
+            lastProfileServiceError = error
+            return
+        } catch {
+            lastProfileServiceError = .io(path: "profiles", source: String(describing: error))
+            return
+        }
+
         if let idx = profiles.firstIndex(where: { $0.id == profile.id }) {
             profiles[idx] = profile
         } else {
             profiles.append(profile)
         }
         tunnelManager.registerProfile(profile)
-        try? await profileRepo.save(profiles)
-
-        // 同步到新 ProfileService
-        try? await services.profileService?.update(profile)
     }
 
     func deleteProfile(_ id: UUID) async {
+        // Task 7 compat-shim 阶段:ProfileService 是 source of truth。
+        guard let service = services.profileService else { return }
+        do {
+            try await service.delete(id: id)
+            lastProfileServiceError = nil
+        } catch let error as AppError {
+            lastProfileServiceError = error
+            return
+        } catch {
+            lastProfileServiceError = .io(path: "profiles", source: String(describing: error))
+            return
+        }
+
         profiles.removeAll { $0.id == id }
         tunnelManager.unregisterProfile(id: id)
-        try? await profileRepo.save(profiles)
-
-        try? await services.profileService?.delete(id: id)
     }
 
     // MARK: - Editor window
