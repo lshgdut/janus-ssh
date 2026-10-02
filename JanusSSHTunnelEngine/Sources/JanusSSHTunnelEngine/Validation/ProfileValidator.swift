@@ -14,6 +14,27 @@ import Foundation
 public struct ProfileValidator: Sendable {
     public init() {}
 
+    /// Persistence-layer 校验: 只检查 persistence 层能强制的不变量(name 非空)。
+    ///
+    /// 编辑器侧校验(sshHostAlias 在已知 hosts 内、forwards ≥ 1、端口范围、
+    /// localHost / remoteHost 非空 等)在 `validate(_:knownHosts:)` 里。
+    /// 这里放宽 forwards 规则,是因为 ProfileService 是持久化层 — 它只
+    /// 关心"写出去的数据能不能存得回来",不强制业务规则。Editor 仍然走
+    /// `validate(_:knownHosts:)` 完整校验。
+    public func validate(_ profile: Profile) -> [ValidationIssue] {
+        var issues: [ValidationIssue] = []
+
+        if profile.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            issues.append(ValidationIssue(
+                severity: .error,
+                message: "Profile name is required.",
+                field: "name"
+            ))
+        }
+
+        return issues
+    }
+
     /// 单 profile 内的字段校验。
     ///
     /// - Parameters:
