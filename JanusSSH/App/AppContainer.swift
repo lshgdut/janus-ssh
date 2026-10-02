@@ -4,25 +4,44 @@ import JanusSSHTunnelEngine
 
 /// 依赖容器 — 所有 Manager 通过 `@Environment(AppContainer.self)` 注入到 View。
 /// 无第三方 DI 框架。
+///
+/// Task 7 状态:这是**最小可行迁移**。Engine 层已经走 ServicesContainer
+/// (DAO + 协议化服务聚合),但 App 这一层仍保留 `tunnelManager` /
+/// `sshHostManager` / `settingsManager` 等老 manager 的 API,以便既有 View
+/// 代码不需要改动。
+///
+/// 后续清理(独立 PR):
+/// - 删 SSHHostManager / SettingsManager,View 切到 `services.sshConfigManager`
+///   / `services.settingsService`
+/// - 删 TunnelManager / ReconnectController,AppContainer 切到
+///   `services.tunnelService` / `services.reconnectService`
+/// - 删 JSONProfileRepository / JSONSettingsRepository / ManagedPIDStore
+///   / AtomicFileStore(老 init),仅用新 DAO 协议
 @MainActor
 @Observable
 final class AppContainer {
 
-    // 持久化
+    // MARK: - 新架构 (engine ServicesContainer) — 已有,留作后续迁移的接入点
+
+    /// 新架构根 — 当前所有 View 暂未消费,Task 后续清理时统一切换
+    let services: ServicesContainer
+
+    // MARK: - 持久化(老 API — 保留)
+
     let profileRepo: ProfileRepository
     let settingsRepo: SettingsRepository
-
-    // SSH 子进程 PID 持久化 — 用于 App 重启后 sweep 孤儿进程
     let pidStore: ManagedPIDStore
 
-    // 基础设施
+    // MARK: - 基础设施
+
     let sshConfigProvider: SSHConfigProviding
     let portChecker: PortChecking
     let processManager: SSHProcessManaging
     let validator: ProfileValidator
     let logStore: TunnelLogStore
 
-    // 应用层服务
+    // MARK: - 应用层服务(老 API — 保留)
+
     let sshHostManager: SSHHostManager
     let tunnelManager: TunnelManager
     let reconnectController: ReconnectController
@@ -41,7 +60,14 @@ final class AppContainer {
         let profilesURL = appSupport.appendingPathComponent("profiles.json")
         let backupsDir = appSupport.appendingPathComponent("backups")
         let settingsURL = appSupport.appendingPathComponent("settings.json")
+        let pidStoreURL = appSupport.appendingPathComponent("managed_pids.json")
 
+        // 新 DAO(已在 Task 2 引入;后续会替换 profileRepo / settingsRepo / pidStore)
+        let profileDAO = JSONProfileDAOImpl(store: store, directory: profilesURL)
+        let settingsDAO = JSONSettingsDAOImpl(store: store, directory: settingsURL)
+        let managedPIDDAO = JSONManagedPIDDAOImpl(store: store, directory: pidStoreURL)
+
+        // 老 repositories(保留给老 managers)
         let profileRepo = JSONProfileRepository(
             fileURL: profilesURL,
             backupDirectory: backupsDir,
@@ -55,13 +81,19 @@ final class AppContainer {
         let logStore = TunnelLogStore()
         let processManager = SSHProcessManager()
 
-        // 持久化 SSH 子进程 PID 列表 — 用来在 App 重启时 sweep 上一会话残留的孤儿
-        let pidStoreURL = appSupport.appendingPathComponent("managed_pids.json")
         let pidStore = ManagedPIDStore(fileURL: pidStoreURL)
 
-        // 2. Application services
+        // 2. 构造 ServicesContainer(Task 1-6 已就绪)
+        let services = ServicesContainer(
+            profileDAO: profileDAO,
+            settingsDAO: settingsDAO,
+            managedPIDDAO: managedPIDDAO
+        )
+
+        // 3. Application services(老 managers — 暂保留)
+        let sshConfigProvider = SSHConfigService()
         let sshHostManager = SSHHostManager(
-            provider: SSHConfigService(),
+            provider: sshConfigProvider,
             defaultConfigPath: "~/.ssh/config"
         )
         let tunnelManager = TunnelManager(
@@ -76,20 +108,22 @@ final class AppContainer {
         let settingsManager = SettingsManager(repository: settingsRepo)
         let notificationManager = NotificationManager()
 
-        // 3. Lifecycle
+        // 4. Lifecycle
         let lifecycleManager = AppLifecycleManager(
             tunnelManager: tunnelManager,
             reconnectController: reconnectController,
             settingsManager: settingsManager
         )
 
-        // 4. 主题 — 在 settingsManager 之后构造,因为要订阅它
+        // 5. 主题
         let themeController = ThemeController(settingsManager: settingsManager)
 
-        // 5. 赋值给 self
+        // 6. 赋值
+        self.services = services
         self.profileRepo = profileRepo
         self.settingsRepo = settingsRepo
-        self.sshConfigProvider = sshHostManager.provider
+        self.pidStore = pidStore
+        self.sshConfigProvider = sshConfigProvider
         self.portChecker = portChecker
         self.processManager = processManager
         self.validator = validator
@@ -101,7 +135,6 @@ final class AppContainer {
         self.notificationManager = notificationManager
         self.lifecycleManager = lifecycleManager
         self.themeController = themeController
-        self.pidStore = pidStore
     }
 
     static func bootstrap() -> AppContainer {
@@ -111,29 +144,28 @@ final class AppContainer {
     }
 
     func bootstrap() async {
-        // 加载 profiles
+        // 启动 ServicesContainer(加载 profiles / settings 到 service 层)
+        try? await services.bootstrap()
+
+        // Sweep 上次会话残留的 SSH 子进程
+        if let mpid = services.managedPIDService {
+            _ = try? await mpid.sweepOrphans()
+        }
+
+        // 老 manager 自己的 bootstrap(profiles / settings 加载)
         do {
             profiles = try await profileRepo.load()
         } catch RepositoryError.fileNotFound {
-            profiles = []  // 首次启动
+            profiles = []
         } catch {
             print("[Janus] Failed to load profiles: \(error)")
             profiles = []
         }
 
-        // 加载 settings
         await settingsManager.load()
 
-        // 启动主题监听 — 必须在 settings 加载后,否则读不到用户偏好
+        // 启动主题监听
         themeController.start()
-
-        // Sweep 上次会话残留的 SSH 子进程 — 必须在 registerProfile / start 之前
-        // 否则会出现"App 还在 sweep,但用户先点 Start,端口已被本会话的旧 SSH 占住"的竞态
-        await pidStore.load()
-        let killed = await pidStore.sweep()
-        if !killed.isEmpty {
-            print("[Janus] Swept \(killed.count) orphan SSH process(es) from previous session")
-        }
 
         // 注册所有 profile
         for profile in profiles {
@@ -155,33 +187,31 @@ final class AppContainer {
         }
         tunnelManager.registerProfile(profile)
         try? await profileRepo.save(profiles)
+
+        // 同步到新 ProfileService
+        try? await services.profileService?.update(profile)
+    }
+
+    func deleteProfile(_ id: UUID) async {
+        profiles.removeAll { $0.id == id }
+        tunnelManager.unregisterProfile(id: id)
+        try? await profileRepo.save(profiles)
+
+        try? await services.profileService?.delete(id: id)
     }
 
     // MARK: - Editor window
 
-    /// 当前正在编辑的 profile(独立 window 用)
     private(set) var editingProfile: Profile?
-
-    /// 区分"新建"vs"编辑"已有 profile — ProfileEditorView 据此隐藏
-    /// Delete / Save&Stop / Save&Restart 等只对已存在 profile 有意义的操作。
     private(set) var editingProfileIsNew: Bool = false
-
-    /// 跟踪未保存的 duplicate draft 名字 — 让用户连点 Duplicate 时
-    /// 每个 Editor 拿到不同名字,避免 race。但不预 append 到 profiles,
-    /// 让 Editor Save 才走 upsertProfile,关闭不保存 = 完全无副作用,
-    /// 跟 New Profile 流程对称。
-    /// closeEditor 会在编辑器关闭时清理对应条目。
     private var inFlightDuplicateNames: Set<String> = []
 
-    /// 从 ProfileListView / EmptyState / 新建菜单调用
-    /// 设置后会通过 @Observable 通知 ProfileEditorWindow scene 打开
     func requestEdit(profile: Profile, isNew: Bool = false) {
         editingProfile = profile
         editingProfileIsNew = isNew
     }
 
     func closeEditor() {
-        // 释放未保存的 duplicate draft 名字 — 让后续 Duplicate 可复用
         if editingProfileIsNew, let name = editingProfile?.name {
             inFlightDuplicateNames.remove(name)
         }
@@ -189,16 +219,6 @@ final class AppContainer {
         editingProfileIsNew = false
     }
 
-    /// 复制 source 并打开 Editor 让用户改名/调整端口后保存。
-    ///
-    /// 关键: copy 不会立即进入 `profiles` 数组,也不会注册到 TunnelManager —
-    /// 仅当用户在 Editor 里点 Save 走 upsertProfile 时才入库。这跟 New Profile
-    /// 流程(makeBlankDraftProfile → requestEdit → upsertProfile)对称,
-    /// 关掉 Editor 不保存 = 干净丢弃,无 ghost profile (Case 2)。
-    ///
-    /// inFlightDuplicateNames 保证连点 N 次产生 N 个不同名字 (Case 6)。
-    /// 源 profile 自己的名字从 taken 中排除 — 复制 "Production" 时, "Production"
-    /// 在 profiles 里也不该阻挡 "Production Copy" 生成。
     func duplicateProfile(_ source: Profile) {
         var taken = Set(profiles.map(\.name))
         taken.subtract([source.name])
@@ -208,10 +228,6 @@ final class AppContainer {
         requestEdit(profile: copy, isNew: true)
     }
 
-    /// 构造一份空白 Profile,作为"新建"的初始值。
-    /// 三个调用点(RootView / ProfileListView.Toolbar / ProfileListView.EmptyState)
-    /// 之前各写一份相同 8 行 factory,改一处容易漏改。集中到这里后,
-    /// 未来给 Profile 加字段或调整默认值只改一处。
     func makeBlankDraftProfile() -> Profile {
         Profile(
             name: "",
@@ -224,16 +240,8 @@ final class AppContainer {
         )
     }
 
-    func deleteProfile(_ id: UUID) async {
-        profiles.removeAll { $0.id == id }
-        tunnelManager.unregisterProfile(id: id)
-        try? await profileRepo.save(profiles)
-    }
-
     // MARK: - Preview seed
     #if DEBUG
-    /// 给 SwiftUI Preview / Live Preview 用的种子数据入口。
-    /// 在类内可写 `profiles`,从外部用 extension 调用。
     func seedPreviewProfiles() {
         let now = Date()
         let prod = Profile(
@@ -286,25 +294,22 @@ final class AppContainer {
 #if DEBUG
 extension AppContainer {
     /// Preview / Live Preview 用的 stub container,不读盘、不 sweep 孤儿进程。
-    /// seed 3 个 mock profile,分别 mock running / running / error 三种状态,
-    /// 让 Preview 能看到全状态的 ProfileCard 视觉。
     @MainActor
     static var preview: AppContainer {
         let c = AppContainer()
         c.seedPreviewProfiles()
-        // mock 状态 — 让 Preview 看到不同 TunnelState 的渲染效果
         let prodID    = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
         let stagingID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         let privID    = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
         c.tunnelManager._previewSetState(
             profileID: prodID,
             state: .running,
-            startedAt: Date().addingTimeInterval(-2 * 3600 - 14 * 60)  // 2h 14m ago
+            startedAt: Date().addingTimeInterval(-2 * 3600 - 14 * 60)
         )
         c.tunnelManager._previewSetState(
             profileID: stagingID,
             state: .running,
-            startedAt: Date().addingTimeInterval(-3600 - 3 * 60)  // 1h 03m ago
+            startedAt: Date().addingTimeInterval(-3600 - 3 * 60)
         )
         c.tunnelManager._previewSetState(
             profileID: privID,
