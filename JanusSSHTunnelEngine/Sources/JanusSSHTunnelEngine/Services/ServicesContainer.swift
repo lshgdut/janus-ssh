@@ -51,6 +51,10 @@ public final class ServicesContainer {
     /// 与既有 App `SSHHostManager` 并存到 Task 7。Task 7 把 AppContainer 切到
     /// `services.sshConfigManager` 后,App 层的 `SSHHostManager` 被删除。
     public private(set) var sshConfigManager: SSHConfigManager?
+    /// Task 6 新增 — `SettingsService` 是全局 `AppSettings` 的应用层门面,
+    /// 跟 App `SettingsManager` 并存到 Task 7。Task 7 把 AppContainer 切到
+    /// `services.settingsService` 后,App 层的 `SettingsManager` 被删除。
+    public private(set) var settingsService: SettingsService?
 
     // MARK: - Init
 
@@ -108,5 +112,12 @@ public final class ServicesContainer {
         // testResults。与 App 层既有 `SSHHostManager` 并存到 Task 7。
         let sshConfigProvider = SSHConfigService()
         self.sshConfigManager = SSHConfigManagerImpl(provider: sshConfigProvider)
+
+        // Task 6 — SettingsService: 包 `SettingsDAO` 成 `@MainActor @Observable`
+        // 的应用层 service,UI 直接观察 `settings`。与 App 层既有
+        // `SettingsManager` 并存到 Task 7。
+        let settingsService = SettingsServiceImpl(dao: settingsDAO)
+        try await settingsService.bootstrap()
+        self.settingsService = settingsService
     }
 }
