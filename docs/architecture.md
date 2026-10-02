@@ -1,36 +1,44 @@
 # Janus SSH — Architecture
 
-> 一句话:**Janus SSH = 原型定义的 6 个屏幕 × 三层架构 × 一个 Swift Package 化的 Tunnel Engine × 不实现 SSH 的硬性原则**
+> 一句话:**Janus SSH = 7 个屏幕 × Command/Service/DAO 四层 × 一个 Swift Package 化的 Tunnel Engine × 不实现 SSH 的硬性原则**
 
 ---
 
-## 三层架构
+## 四层架构 (v0.4.0+)
 
 ```
 ┌─────────────────────────────────────────────┐
-│                 Janus App                   │
+│                  Janus App                  │
 │                                             │
 │  SwiftUI                                    │
-│      │                                      │
+│      │  @Environment(AppContainer.self)     │
 │      ▼                                      │
-│  Presentation                              │
-│      │                                      │
+│  AppContainer (facade)                      │
+│      │  services: ServicesContainer         │
 │      ▼                                      │
-│  Application                               │
+│  ServicesContainer (engine, @MainActor)     │
 │      │                                      │
-│      ├── ProfileManager                     │
-│      ├── TunnelManager                      │
-│      ├── SSHHostManager                     │
-│      └── ReconnectController                │
+│      ├── ProfileService                     │
+│      ├── TunnelService                      │
+│      ├── ReconnectService                   │
+│      ├── ManagedPIDService                  │
+│      ├── SSHConfigManager                   │
+│      └── SettingsService                    │
 │                                             │
 │      ▼                                      │
-│  Infrastructure                            │
+│  DAOs (actor, per-aggregate)                │
 │      │                                      │
-│      ├── SSHConfigService                   │
-│      ├── SSHProcessManager                  │
+│      ├── ProfileDAO   → profiles.json       │
+│      ├── SettingsDAO  → settings.json       │
+│      └── ManagedPIDDAO → managed_pids.json  │
+│                                             │
+│  Infrastructure                            │
+│      ├── SSHCommandBuilder                  │
+│      ├── SSHProcess / SSHProcessManager     │
 │      ├── PortChecker                        │
-│      ├── ProfileRepository                  │
-│      └── LogStore                           │
+│      ├── AtomicFileStore                    │
+│      ├── JSONMigrator                       │
+│      └── SSHConfigProviding                 │
 │                                             │
 └───────────────┬─────────────────────────────┘
                 │
@@ -39,40 +47,59 @@
    macOS Frameworks    /usr/bin/ssh
 ```
 
-## 核心约束
+### 分层职责
+
+| 层 | 职责 | 依赖 | 隔离 |
+|---|---|---|---|
+| **Domain** | 数据结构 + 跨服务事件 | 无 | Sendable |
+| **Persistence (DAO)** | 文件 I/O、原子写、envelope、迁移 | Domain | actor |
+| **Services** | 业务逻辑、状态机、事件发布 | DAO, SSH, Domain | `@MainActor @Observable` (状态型) 或 `actor` (纯逻辑型) |
+| **App (AppContainer)** | service 聚合 + DI 入口 + UI 状态 | Services | MainActor |
+
+### Compat shims (过渡期)
+
+v0.4.0 重构引入新架构,但保留 v0.3.x 的 compat shim 以避免一次性大改 App 端 7 个 view + preview seed:
+
+- `JanusSSH/App/SSHHostManager.swift`(→ `services.sshConfigManager`)
+- `JanusSSH/App/SettingsManager.swift`(→ `services.settingsService`)
+- `JanusSSHTunnelEngine/Services/ReconnectController.swift`(→ `services.reconnectService`)
+- `JanusSSHTunnelEngine/Tunnel/TunnelManager.swift`(→ `services.tunnelService`)
+- `JanusSSHTunnelEngine/Persistence/JSONProfileRepository.swift`(→ `ProfileDAO`)
+- `JanusSSHTunnelEngine/Settings/JSONSettingsRepository.swift`(→ `SettingsDAO`)
+- `JanusSSHTunnelEngine/Services/ManagedPIDStore.swift`(→ `ManagedPIDService`)
+
+后续清理 PR 会 sed-rename view 调用点 + 删除 shim 文件。
+
+---
+
+## 主要决策
+
+详见 `docs/adr/`:
+- ADR-0001 ~ 0010 — 既有决策
+- **ADR-0011** Command / Service / DAO 分层
+- **ADR-0012** 统一 `AppError`
+- **ADR-0013** 声明式 `JSONMigrator`
+
+## 错误流
 
 ```
-View ──► ViewModel ──► Manager ──► Service ──► Infrastructure
-  └─────────────── Observation (read-only) ───────────────┘
+Domain Error (Sendable + LocalizedError)
+    ↓
+Service throws AppError
+    ↓
+AppContainer catches → AppError.errorDescription → UI 文案
 ```
 
-View 永远不能直接调用 SSHProcess。所有路径必须经过 TunnelManager。
+详见 ADR-0012。
 
-## Tunnel Engine 作为独立 Swift Package
-
-`JanusSSHTunnelEngine` 是独立 Swift Package:
-- 可以在 macOS App 之外独立测试
-- 未来抽出 CLI(`janus` 命令行)直接复用
-- 未来切到 XPC Helper 时只换 SSHProcess 的 IPC 通道
-
-## Domain 隔离
+## 持久化流
 
 ```
-Profile(持久化配置)
-   ├── sshHost
-   ├── Forward 1, 2, 3
-   └── Behavior (enabled / autoReconnect / autoStart)
-   
-Tunnel(运行时)
-   ├── profileSnapshot  ← 启动时的不可变副本
-   ├── state            ← stopped/starting/running/stopping/error/reconnecting
-   ├── pid
-   ├── startedAt
-   ├── stoppedAt
-   └── lastError
+profileRepo.save(profiles)
+    ↓
+AtomicFileStore.write (tmp → fsync → rename)
+    ↓
+backup/profile-<ISO8601>.json (滚动 10 个)
 ```
 
-Profile 和 Tunnel **严格解耦**:
-- 改 Profile 不影响已运行的 Tunnel
-- 启动失败不污染 Profile 数据
-- Persistence 只关心 Profile,Tunnel 状态不进 profiles.json
+详见 `ProfileDAO.swift` / `JSONMigrator.swift`。
