@@ -47,6 +47,10 @@ public final class ServicesContainer {
     /// 并存到 Task 7。Task 7 把 AppContainer 切到 `services.tunnelService` 后,
     /// TunnelManager 被删除。
     public private(set) var tunnelService: TunnelService?
+    /// Task 5 新增 — `SSHConfigManager` 是 SSH host 缓存 + 测试状态跟踪器,
+    /// 与既有 App `SSHHostManager` 并存到 Task 7。Task 7 把 AppContainer 切到
+    /// `services.sshConfigManager` 后,App 层的 `SSHHostManager` 被删除。
+    public private(set) var sshConfigManager: SSHConfigManager?
 
     // MARK: - Init
 
@@ -98,5 +102,11 @@ public final class ServicesContainer {
             profileProvider: { @Sendable in await MainActor.run { profileService.profiles } }
         )
         self.tunnelService = tunnelService
+
+        // Task 5 — SSHConfigManager: 把 `SSHConfigProviding`(具体 `SSHConfigService`)
+        // 包成 `@MainActor @Observable` 的应用层 service,UI 直接观察 hosts /
+        // testResults。与 App 层既有 `SSHHostManager` 并存到 Task 7。
+        let sshConfigProvider = SSHConfigService()
+        self.sshConfigManager = SSHConfigManagerImpl(provider: sshConfigProvider)
     }
 }
