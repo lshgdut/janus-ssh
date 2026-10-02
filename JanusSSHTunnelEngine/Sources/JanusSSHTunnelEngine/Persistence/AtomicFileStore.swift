@@ -5,12 +5,54 @@ import Foundation
 /// 保证配置文件写入的原子性 — 即使 App 在写入过程中 crash,目标文件要么是旧版要么是新版,
 /// 不会有损坏的中间态。同时维护一个 `.bak` 文件保存上一次成功的内容,便于恢复。
 public actor AtomicFileStore {
-    public init() {}
+    /// 测试用目录 — DAO 测试用 `AtomicFileStore(directory: tmpDir)` 让 store
+    /// 写到一个临时目录里。生产代码继续走无参 `init()` + `AppPaths.profilesJSON` 等
+    /// 绝对路径。
+    private let baseDirectory: URL?
+
+    public init() {
+        self.baseDirectory = nil
+    }
+
+    public init(directory: URL) {
+        self.baseDirectory = directory
+    }
 
     public enum AtomicStoreError: Error {
         case writeFailed(underlying: Error)
         case renameFailed(underlying: Error)
         case fsyncFailed(underlying: Error)
+    }
+
+    /// JSON 解码并返回 `T`。文件不存在时抛 `.io`。
+    /// 路径是绝对路径 — DAO 直接用 `AppPaths.profilesJSON` 等。
+    public func read<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else {
+            throw AppError.io(path: url.path, source: "file not found")
+        }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw AppError.io(path: url.path, source: "read: \(error.localizedDescription)")
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw AppError.decode(path: url.path, source: "parse: \(error.localizedDescription)")
+        }
+    }
+
+    /// JSON 编码 `value` 走 `write(_:to:)` 原子落盘。
+    public func write<T: Encodable>(_ value: T, to url: URL) async throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(value)
+        try await write(data, to: url)
     }
 
     /// 原子写入 `data` 到 `url`。
