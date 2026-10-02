@@ -1,10 +1,14 @@
 import Foundation
 
 /// 数据 schema 版本 — 用于 ProfileEnvelope 演进时的迁移判断
-public enum SchemaVersion: Int, Codable, Sendable {
+public enum SchemaVersion: Int, Codable, Sendable, CaseIterable, Equatable, Comparable {
     case v1 = 1
 
     public static let current: SchemaVersion = .v1
+
+    public static func < (lhs: SchemaVersion, rhs: SchemaVersion) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
 }
 
 /// Profile 文件的 JSON 顶层结构。
