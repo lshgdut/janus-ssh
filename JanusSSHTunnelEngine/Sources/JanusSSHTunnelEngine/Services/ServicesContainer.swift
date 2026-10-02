@@ -43,6 +43,10 @@ public final class ServicesContainer {
     /// `AppLifecycleManager` / 老的 `ReconnectControllerTests` 用)。
     /// Task 7 删除 `ReconnectController`,把消费者迁到 `ReconnectService`。
     public private(set) var reconnectService: ReconnectService?
+    /// Task 4 新增 — `TunnelService` 是新 orchestrator,跟既有 `TunnelManager`
+    /// 并存到 Task 7。Task 7 把 AppContainer 切到 `services.tunnelService` 后,
+    /// TunnelManager 被删除。
+    public private(set) var tunnelService: TunnelService?
 
     // MARK: - Init
 
@@ -77,5 +81,22 @@ public final class ServicesContainer {
         // 实际的 start() 重连触发。
         let reconnectService = ReconnectServiceImpl(policy: .defaults)
         self.reconnectService = reconnectService
+
+        // Task 4 — TunnelService: 新 orchestrator,跟既有 TunnelManager 并存
+        // 到 Task 7。profileProvider 从 profileService.profiles 读最新快照。
+        guard let profileService = self.profileService else {
+            fatalError("ProfileService must be initialized before TunnelService")
+        }
+        let tunnelService = TunnelService(
+            processManager: SSHProcessManager(),
+            portChecker: TCPPortChecker(),
+            validator: ProfileValidator(),
+            logStore: TunnelLogStore(),
+            reconnectService: reconnectService,
+            managedPIDService: managedPIDService,
+            sshConfigProvider: SSHConfigService(),
+            profileProvider: { @Sendable in await MainActor.run { profileService.profiles } }
+        )
+        self.tunnelService = tunnelService
     }
 }
