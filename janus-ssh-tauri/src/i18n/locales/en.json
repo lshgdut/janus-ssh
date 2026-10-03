@@ -1,0 +1,16 @@
+{
+  "nav": {
+    "profiles": "Profiles",
+    "hosts": "SSH Hosts",
+    "settings": "Settings"
+  },
+  "profiles": {
+    "title": "Profiles",
+    "new": "New Profile",
+    "empty": "No profiles yet. Click \"New Profile\" to create one."
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme"
+  }
+}

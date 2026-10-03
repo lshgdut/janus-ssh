@@ -1,0 +1,58 @@
+[package]
+name = "janus-ssh"
+version = "0.4.0"
+description = "SSH tunnel manager"
+authors = ["lshgdut"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "janus_ssh_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "janus-ssh"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.1", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-log = "2.0"
+tauri-plugin-os = "2.0"
+tauri-plugin-process = "2.0"
+tauri-plugin-shell = "2.0"
+tauri-plugin-store = "2.1"
+tauri-plugin-dialog = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+anyhow = "1"
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+which = "6"
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

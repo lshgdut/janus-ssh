@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:app:allow-version",
+    "core:app:allow-name",
+    "core:tray:default",
+    "core:menu:default",
+    "core:event:default",
+    "log:default",
+    "store:default",
+    "dialog:default",
+    "os:default",
+    "process:default",
+    "shell:default"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "nav": {
+    "profiles": "配置文件",
+    "hosts": "SSH 主机",
+    "settings": "设置"
+  },
+  "profiles": {
+    "title": "配置文件",
+    "new": "新建配置",
+    "empty": "暂无配置。点击\"新建配置\"创建。"
+  },
+  "settings": {
+    "title": "设置",
+    "theme": "主题"
+  }
+}
