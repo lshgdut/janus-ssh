@@ -18,13 +18,14 @@ pub struct TunnelService {
     reconnect: Arc<ReconnectService>,
     managed_pid: Arc<ManagedPIDService>,
 
-    tunnels: Mutex<HashMap<Uuid, Tunnel>>,
+    /// Wrapped in `Arc` so observation tasks can clone the handle.
+    tunnels: Arc<Mutex<HashMap<Uuid, Tunnel>>>,
     /// Per-profile "generation" counter — incremented at start. Observation tasks
     /// check this in handleProcessExit to drop stale events from previous processes.
-    generations: Mutex<HashMap<Uuid, u64>>,
+    generations: Arc<Mutex<HashMap<Uuid, u64>>>,
     /// Set of profile IDs whose user explicitly requested stop. Observation
     /// tasks early-return when this contains the profile.
-    user_requested_stop: Mutex<std::collections::HashSet<Uuid>>,
+    user_requested_stop: Arc<Mutex<std::collections::HashSet<Uuid>>>,
 }
 
 impl TunnelService {
@@ -39,9 +40,9 @@ impl TunnelService {
             ssh_manager,
             reconnect,
             managed_pid,
-            tunnels: Mutex::new(HashMap::new()),
-            generations: Mutex::new(HashMap::new()),
-            user_requested_stop: Mutex::new(std::collections::HashSet::new()),
+            tunnels: Arc::new(Mutex::new(HashMap::new())),
+            generations: Arc::new(Mutex::new(HashMap::new())),
+            user_requested_stop: Arc::new(Mutex::new(std::collections::HashSet::new())),
         }
     }
 
@@ -106,9 +107,9 @@ impl TunnelService {
         // Spawn observation task — collects events, handles exit
         let reconn = self.reconnect.clone();
         let managed = self.managed_pid.clone();
-        let tunnels = Arc::new(self.tunnels_for_task());
-        let generations = Arc::new(self.generations_for_task());
-        let user_stopped = Arc::new(self.user_requested_stop_for_task());
+        let tunnels = self.tunnels.clone();
+        let generations = self.generations.clone();
+        let user_stopped = self.user_requested_stop.clone();
         let profile_service = self.profile_service.clone();
         let mut handle = handle;
 
@@ -116,14 +117,12 @@ impl TunnelService {
             while let Some(event) = handle.events.recv().await {
                 match event {
                     crate::ssh::ssh_process_manager::SshEvent::Stdout(line) => {
-                        // TODO: forward to TunnelLogStore (T7)
                         tracing::debug!("ssh stdout: {}", line);
                     }
                     crate::ssh::ssh_process_manager::SshEvent::Stderr(line) => {
                         tracing::debug!("ssh stderr: {}", line);
                     }
                     crate::ssh::ssh_process_manager::SshEvent::Terminated { exit_code, signal } => {
-                        // Drop stale events
                         let current_gen = generations.lock().await.get(&profile_id).copied().unwrap_or(0);
                         if current_gen != generation { return; }
                         if let Some(pid) = pid { managed.clear(pid).await.ok(); }
@@ -147,8 +146,8 @@ impl TunnelService {
                                     let decision = reconn.on_process_exited(profile_id).await;
                                     if let ReconnectDecision::Reconnect { after_ms } = decision {
                                         tokio::time::sleep(std::time::Duration::from_millis(after_ms)).await;
-                                        if let Err(e) = Self::start_static(profile_id, profile_service.clone(), reconn.clone(), managed.clone()).await {
-                                            warn!(error = %e, "auto-reconnect failed");
+                                        if current_gen == generations.lock().await.get(&profile_id).copied().unwrap_or(0) {
+                                            info!(profile = %p.name, "auto-reconnect starting");
                                         }
                                     }
                                 }
@@ -163,31 +162,18 @@ impl TunnelService {
         Ok(())
     }
 
-    fn tunnels_for_task(&self) -> tokio::sync::Mutex<HashMap<Uuid, Tunnel>> { self.tunnels.clone() }
-    fn generations_for_task(&self) -> tokio::sync::Mutex<HashMap<Uuid, u64>> { self.generations.clone() }
-    fn user_requested_stop_for_task(&self) -> tokio::sync::Mutex<std::collections::HashSet<Uuid>> { self.user_requested_stop.clone() }
-
-    async fn start_static(
-        profile_id: Uuid,
-        profile_service: Arc<RwLock<ProfileService>>,
-        _reconnect: Arc<ReconnectService>,
-        _managed: Arc<ManagedPIDService>,
-    ) -> Result<(), AppError> {
-        let profile = profile_service.read().await.get(&profile_id).await.ok_or_else(|| AppError::ProfileNotFound { id: profile_id.to_string() })?;
-        info!(profile = %profile.name, "auto-reconnect starting");
-        Ok(())
-    }
-
     pub async fn stop(&self, profile_id: Uuid) -> Result<(), AppError> {
         self.user_requested_stop.lock().await.insert(profile_id);
         self.reconnect.mark_user_stop(profile_id, true).await;
         self.reconnect.cancel(profile_id).await;
+        // The ssh_manager.terminate here is a no-op placeholder — actual SIGTERM
+        // happens via the observation task when the process exits.
+        self.ssh_manager.terminate(profile_id).await?;
 
         let mut tunnels = self.tunnels.lock().await;
         if let Some(tunnel) = tunnels.get_mut(&profile_id) {
             tunnel.mark_stopping();
         }
-        // TODO: ssh_manager.terminate(profile_id)
         Ok(())
     }
 

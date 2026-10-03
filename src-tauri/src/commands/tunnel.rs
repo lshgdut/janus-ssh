@@ -6,10 +6,7 @@ use uuid::Uuid;
 
 #[tauri::command]
 pub async fn list_tunnels(state: State<'_, ServicesContainer>) -> Result<Vec<Tunnel>, String> {
-    state.tunnel_service.list().await;
-
-    // Real impl would return state.tunnel_service.list().await
-    Ok(Vec::new()) // placeholder
+    state.tunnel_service.list().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

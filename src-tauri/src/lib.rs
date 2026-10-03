@@ -38,22 +38,23 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
             tracing::info!(app_data_dir = %app_data_dir.display(), "starting janus-ssh");
 
-            // Build AtomicJsonStore + DAOs
-            let store = futures::executor::block_on(async {
+            // Build AtomicJsonStore + DAOs synchronously (setup hook is sync).
+            // AtomicJsonStore::new only does directory creation + path setup — fast.
+            let store = tauri::async_runtime::block_on(async {
                 AtomicJsonStore::new(&app_data_dir).await
             })
             .expect("failed to create AtomicJsonStore");
 
             let profile_dao: Arc<dyn ProfileDAO> = Arc::new(JsonProfileDAO::new(store.clone()));
             let settings_dao: Arc<dyn SettingsDAO> = Arc::new(JsonSettingsDAO::new(store.clone()));
-            let managed_pid_dao: Arc<dyn ManagedPIDDAO> = Arc::new(JsonManagedPIDDAO::new(store));
+            let managed_pid_dao: Arc<dyn ManagedPIDDAO> = Arc::new(JsonManagedPIDDAOImpl::new(store));
 
             // SSH process manager
             let ssh_manager: Arc<dyn crate::ssh::ssh_process_manager::SshProcessManaging> =
                 Arc::new(SshProcessManager::new());
 
             // Bootstrap services container
-            let services = futures::executor::block_on(ServicesContainer::bootstrap(
+            let services = tauri::async_runtime::block_on(ServicesContainer::bootstrap(
                 profile_dao,
                 settings_dao,
                 managed_pid_dao,

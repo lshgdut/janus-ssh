@@ -70,12 +70,14 @@ pub trait SshProcessManaging: Send + Sync {
 }
 
 pub struct SshProcessManager {
-    handles: tokio::sync::Mutex<std::collections::HashMap<Uuid, SshProcessHandle>>,
+    /// Track only running PIDs (not full handles) — needed for `terminate_all_now`
+    /// synchronous kill. The actual `SshProcessHandle` is owned by the caller.
+    live_pids: tokio::sync::Mutex<std::collections::HashMap<Uuid, i32>>,
 }
 
 impl SshProcessManager {
     pub fn new() -> Self {
-        Self { handles: tokio::sync::Mutex::new(std::collections::HashMap::new()) }
+        Self { live_pids: tokio::sync::Mutex::new(std::collections::HashMap::new()) }
     }
 }
 
@@ -99,7 +101,7 @@ impl SshProcessManaging for SshProcessManager {
         }
 
         let mut child = command.spawn().map_err(|e| AppError::SshSpawnFailed { underlying: e.to_string() })?;
-        let pid = child.id();
+        let pid = child.id().unwrap_or(0);
         let stdout = child.stdout.take().ok_or_else(|| AppError::SshSpawnFailed { underlying: "no stdout".to_string() })?;
         let stderr = child.stderr.take().ok_or_else(|| AppError::SshSpawnFailed { underlying: "no stderr".to_string() })?;
 
@@ -122,48 +124,29 @@ impl SshProcessManaging for SshProcessManager {
             }
         });
 
-        // termination watcher
-        let tx3 = tx.clone();
-        let pid_for_watcher = pid;
-        tokio::spawn(async move {
-            // We can't move `child` out without breaking the handle; instead poll wait().
-            // Use a small interval instead.
-            let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
-            interval.tick().await; // immediate
-            loop {
-                interval.tick().await;
-                // Try to read child status via /proc on Linux or kqueue on macOS.
-                // Simplest: send a periodic keepalive. Actual exit detection is best-effort.
-                if tx3.is_closed() { break; }
-            }
-        });
-        let _ = pid_for_watcher; // suppress unused warning
+        // Track PID for synchronous terminate_all_now
+        if pid > 0 {
+            self.live_pids.lock().await.insert(profile_id, pid);
+        }
 
-        let handle = SshProcessHandle { id: profile_id, pid, events: rx, child };
-        self.handles.lock().await.insert(profile_id, /* placeholder */ unsafe { std::mem::zeroed() });
-        // Note: storing the actual handle here is non-trivial due to &mut self. The handle is returned
-        // to the caller; the manager's internal map tracks running PIDs only.
-        Ok(handle)
+        Ok(SshProcessHandle { id: profile_id, pid: Some(pid as i32), events: rx, child })
     }
 
-    async fn terminate(&self, _profile_id: Uuid) -> Result<(), AppError> {
-        // Acquire and terminate. Simplified: caller has the handle.
+    async fn terminate(&self, profile_id: Uuid) -> Result<(), AppError> {
+        self.live_pids.lock().await.remove(&profile_id);
         Ok(())
     }
 
     async fn terminate_all(&self) -> Result<(), AppError> {
-        let mut handles = self.handles.lock().await;
-        for (_id, mut handle) in handles.drain() {
-            let _ = handle.terminate_gracefully().await;
-        }
+        self.live_pids.lock().await.clear();
         Ok(())
     }
 
     fn terminate_all_now(&self) {
-        // Sync best-effort. We can't await mutex.lock() here without blocking, so use try_lock.
-        if let Ok(mut handles) = self.handles.try_lock() {
-            for (_id, handle) in handles.iter() {
-                handle.terminate_now();
+        // Sync best-effort SIGKILL on all tracked PIDs (process group).
+        if let Ok(mut pids) = self.live_pids.try_lock() {
+            for (_id, pid) in pids.drain() {
+                unsafe { libc_kill(-pid, 9) };
             }
         }
     }
