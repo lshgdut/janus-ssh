@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**", "release/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "feat/**", "release/**"]
+  workflow_dispatch:
 
 jobs:
   test-rust:
