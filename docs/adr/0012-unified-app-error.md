@@ -2,78 +2,75 @@
 
 ## Status
 
-Accepted · 2026-10-02
+Accepted · 2026-10-02 (originally Swift engine; re-applied for Tauri Rust)
 
 ## Context
 
-v0.3.x 的错误处理是分散的:
+The Tauri Rust backend needs a single error type that:
+- Returns from every service method as `Result<T, AppError>`
+- Serializes to a flat string for IPC transport (frontend sees `Result<T, String>`)
+- Carries enough context for the UI to render actionable messages
+- Maps cleanly into `tracing::error!` log lines
 
-1. `TunnelError` 是 11 个 case 的 enum,但只覆盖 tunnel 相关错误
-2. `SSHConfigError`(3 个 case)、`SSHProcessError`、`RepositoryError`、`ValidationIssue`、`TunnelError` 各自定义
-3. View 层到处 `catch let error as TunnelError` + `catch let error as SSHConfigError` + `catch { error.localizedDescription }`,错误来源混杂
-4. 跨域错误无法用类型表达(例:`profileNotFound` + `decode failure` + `lockUnavailable` 同时发生)
-
-`cc-switch` 用单个 `thiserror` 生成的 `AppError` enum + 关联值,所有 service 返回 `Result<T, AppError>`。
+The legacy Swift engine had 11 `TunnelError` cases + scattered `throws String`. We're not migrating that complexity — Rust starts clean.
 
 ## Decision
 
-引入单一 `enum AppError: Error, Sendable, Equatable, LocalizedError`:
+Single `enum AppError` with `thiserror`, `Serialize`, `Deserialize`:
 
-```swift
-enum AppError: Error, Sendable, Equatable, LocalizedError {
-    // 业务
-    case profileNotFound(id: UUID)
-    case duplicateProfileName(name: String)
-    case crossProfileLocalPortConflict(port: UInt16, ownerProfileID: UUID)
-    case sshHostUnknown(alias: String)
-    case sshConfigResolutionFailed(alias: String, reason: String)
-    case authenticationFailed(alias: String)
-    case networkUnreachable(alias: String, reason: String)
+```rust
+#[derive(Debug, thiserror::Error, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", content = "data")]
+pub enum AppError {
+    // Domain
+    ProfileNotFound { id: String },
+    DuplicateProfileName { name: String },
+    CrossProfileLocalPortConflict { port: u16, owner_profile_id: String },
+    SshHostUnknown { alias: String },
+    SshConfigResolutionFailed { alias: String, reason: String },
+    AuthenticationFailed { alias: String },
+    NetworkUnreachable { alias: String, reason: String },
 
-    // 生命周期
-    case sshBinaryNotFound
-    case sshSpawnFailed(underlying: String)
-    case sshExited(code: Int32?, signal: Int32?, reason: TerminationReason)
+    // Lifecycle
+    SshBinaryNotFound,
+    SshSpawnFailed { underlying: String },
+    SshExited { code: Option<i32>, signal: Option<i32>, reason: Option<String> },
 
-    // 持久化
-    case io(path: String, source: String)
-    case decode(path: String, source: String)
-    case encode(path: String, source: String)
-    case schemaVersionTooNew(found: Int, supported: Int)
-    case schemaVersionTooOld(found: Int, supported: Int)
-    case backupFailed(path: String, source: String)
-    case lockUnavailable(resource: String)
+    // Persistence
+    Io { path: String, source: String },
+    Decode { path: String, source: String },
+    Encode { path: String, source: String },
+    SchemaVersionTooNew { found: i32, supported: i32 },
+    SchemaVersionTooOld { found: i32, supported: i32 },
+    BackupFailed { path: String, source: String },
+    LockUnavailable { resource: String },
 
-    // 验证
-    case validation(issues: [ValidationIssue])
+    // Validation
+    Validation { issues: Vec<String> },
 }
 ```
 
-约束:
-- 所有 service 方法 `throws AppError` —— 不抛 `String`、不抛 `any Error` 渗漏
-- `AppError` 必须 `Sendable`(跨 actor)、`Equatable`(测试断言)、`LocalizedError`(UI 文案)
-- 关联值必须是 Sendable 类型(`UUID` / `String` / `UInt16` / `Int32?` / `TerminationReason` / `[ValidationIssue]`)
+**Transport:** `to_flat_string()` produces a single line for IPC. Frontend sees `Result<T, String>` via `#[tauri::command]` mapping.
 
 ## Rationale
 
-**统一错误类型让 View 层简单:** `catch let error as AppError` 一处搞定,switch 按 case 出 UI 文案。
+**`Serialize + Deserialize` with `tag = "type"`** lets the frontend discriminate cases if needed (rarely — usually the flat string is enough for `sonner` toasts).
 
-**`Equatable` 让 log 去重:** `TunnelLogStore` 可以用 `if lastError != newError` 跳过重复写入。
+**`Clone`** so `AppError` can be sent across `tokio::sync::mpsc` channels (sender + receiver).
 
-**`Sendable` 是 Swift 6 strict concurrency 的硬要求:** 跨 actor 边界传错误必须 Sendable。
+**`From` impls** for `std::io::Error`, `serde_json::Error`, `tokio::task::JoinError` prevent leaky `map_err` boilerplate.
 
-**`[ValidationIssue]` 关联值:** 一个 case 携带多条问题,而不是 N 个 `case validationName / validationHost / validationPort` 分散 case。
+**`thiserror::Error`** gives `Display` + `source()` automatically — `tracing::error!(error = %e)` works out of the box.
 
 ## Consequences
 
-**好的:**
-- 所有 service 签名 `throws AppError`(后续 task 会统一,tunnel-specific case 还在过渡)
-- 测试可以 `XCTAssertEqual(error, .profileNotFound(id: x))`
-- UI 文案集中在 `errorDescription` 一个 switch 里
+**Good:**
+- One match arm per case at every call site (`match e { AppError::ProfileNotFound { id } => ... }`)
+- IPC errors carry context — UI can show "Local port 15432 is used by another profile"
+- `tracing` integrates cleanly
 
-**代价:**
-- 现有 `TunnelError` 11 个 case 还在过渡期(Task 7 没删,TunnelService 仍 throw TunnelError)—— 后续清理时合并 `.duplicateLocalPort` / `.localPortUnavailable` 到 AppError
-- `errorDescription` 文案现在用英文,后续接 Localizable.strings 时切换到 `LocalizedStringResource`
+**Cost:**
+- 17 cases × ~3 lines each = bigger enum than a string-based error
+- Adding a new case requires touching all match sites (compiler enforces)
 
-**回退:**
-- AppError 是纯增量的,可以保留老的 TunnelError,新代码用 AppError 即可
+**Reversal:** None — this is the standard Rust error pattern.

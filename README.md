@@ -1,130 +1,140 @@
 # Janus SSH
 
-> 原生 macOS SSH Tunnel Manager — `~/.ssh/config` 的可视化前端
+A menu bar SSH tunnel manager built with **Tauri 2** (Rust + React).
 
-**v0.1 prototype**
+> **Note:** As of v0.4.0, janus-ssh is a complete rewrite from the original Swift/macOS app. The legacy Swift implementation is preserved on the `archive/swift-legacy` branch and tagged `swift-v0.3.1-final` for reference.
 
----
+## What it does
 
-## 设计原则
+Janus SSH lets you manage **SSH port-forward profiles** — each profile maps to one SSH process that forwards N local ports to remote endpoints. Key features:
 
-1. **不实现 SSH** — 100% 复用系统 `/usr/bin/ssh`
-2. **不修改 `~/.ssh/config`** — 只读,数据落在 `~/Library/Application Support/com.lshgdut.janus-ssh/`
-3. **一个 Profile = 一个 SSH Process = N 个 Port Forward**
+- **Profile-centric UI** — one profile = one SSH process = N port forwards
+- **Visual `~/.ssh/config` editor** — discover hosts (with `Include` recursion), test connection per host
+- **Auto-reconnect** — exponential backoff (1s → 30s) on SSH exit
+- **Orphan sweep** — App restart SIGKILLs stale SSH processes from previous session
+- **Theme** — system / light / dark via Tauri's window theming
+- **Cross-platform** — macOS, Windows, Linux (single binary)
+- **Atomic JSON persistence** — backward-compatible with the legacy Swift app
 
----
+## Tech stack
 
-## 仓库结构
+- **Backend:** Rust 1.85+, Tauri 2.1, tokio, serde, thiserror, tracing
+- **Frontend:** React 18, TypeScript 5.6, Vite 5, Tailwind CSS, Radix UI, TanStack Query
+- **State management:** TanStack Query (server state) + Zustand (UI state)
+- **i18n:** i18next (zh-CN, en)
+- **Persistence:** JSON files (atomic write + envelope + backup rotation)
+- **Process management:** tokio::process + custom SSH subprocess supervision
+
+## Architecture
+
+Three-layer backend (Command/Service/DAO) with React frontend:
 
 ```
-janus-ssh/
-├── JanusSSHTunnelEngine/   # 独立 Swift Package,纯 Swift
-│   ├── Sources/JanusSSHTunnelEngine/
-│   │   ├── Domain/         # Profile, PortForward, Tunnel, TunnelState, TunnelError
-│   │   ├── Validation/     # ProfileValidator, ValidationIssue
-│   │   ├── Persistence/    # AtomicFileStore, JSONProfileRepository, SchemaVersion
-│   │   ├── Settings/       # AppSettings, BackoffPolicy, JSONSettingsRepository
-│   │   ├── SSH/            # SSHCommandBuilder, SSHProcess, SSHProcessManaging
-│   │   ├── Tunnel/         # TunnelManager
-│   │   ├── Network/        # PortChecking, TCPPortChecker
-│   │   └── Services/       # SSHHostManager, ReconnectController, TunnelLogStore
-│   ├── Tests/              # XCTest
-│   └── verify/             # 独立可执行验证(CommandLineTools 环境)
-│
-├── JanusSSH/               # macOS App target (Xcode)
-│   ├── App/                # JanusSSHApp, AppContainer, AppLifecycleManager
-│   ├── Presentation/       # SwiftUI Views
-│   │   ├── Navigation/     # RootView, SidebarView
-│   │   ├── Profiles/      # ProfileListView, ProfileEditorView, ProfileRunningView
-│   │   ├── Hosts/         # SSHHostListView
-│   │   ├── Logs/          # TunnelLogView
-│   │   ├── Settings/      # SettingsView
-│   │   └── MenuBar/       # MenuBarView
-│   └── Resources/          # Info.plist, JanusSSH.entitlements
-│
-├── tools/integration-tests/ # Docker sshd 集成测试
-│
-├── docs/
-│   ├── architecture.md     # 整体架构
-│   ├── tunnel-engine.md    # Engine 详解
-│   ├── persistence.md      # Persistence 详解
-│   └── adr/                # 10 个 ADR
-│
-└── scripts/
-    ├── build.sh
-    ├── test.sh
-    └── release.sh
+src-tauri/src/                  Rust backend
+├── lib.rs                      # run() entry + plugin wiring + setup
+├── error.rs                    # AppError (thiserror)
+├── settings.rs                 # AppSettings struct
+├── schema_version.rs           # declarative migration envelope
+├── domain.rs                   # Profile / Tunnel / SshHost / ManagedPID
+├── persistence/                # DAO layer
+│   ├── atomic_json_store.rs    # atomic write + backup + envelope
+│   ├── profile_dao.rs
+│   ├── settings_dao.rs
+│   └── managed_pid_dao.rs
+├── services/                   # business logic
+│   ├── services_container.rs   # service aggregator
+│   ├── profile_service.rs
+│   ├── tunnel_service.rs       # lifecycle + state machine
+│   ├── reconnect_service.rs    # backoff scheduling
+│   ├── managed_pid_service.rs  # orphan process sweep
+│   ├── ssh_config_service.rs   # ~/.ssh/config parsing + tests
+│   └── settings_service.rs
+├── commands/                   # Tauri IPC handlers
+│   ├── profile.rs
+│   ├── tunnel.rs
+│   ├── ssh_config.rs
+│   └── settings.rs
+└── ssh/                        # SSH subprocess layer
+    ├── ssh_command_builder.rs
+    └── ssh_process_manager.rs
+
+src/                            React frontend
+├── main.tsx                    # bootstrap (TanStack Query + i18n)
+├── App.tsx                     # sidebar + views
+├── components/                 # shadcn/ui primitives
+├── features/                   # profiles / hosts / settings / tunnel-log
+├── lib/
+│   ├── api/                    # typed Tauri command wrappers
+│   ├── query/                  # TanStack Query hooks
+│   └── schemas/                # zod schemas
+└── i18n/                       # i18next catalogs (en, zh)
 ```
 
----
-
-## 开发命令
-
-### Tunnel Engine(可在 CommandLineTools 中跑)
+## Development
 
 ```bash
-cd JanusSSHTunnelEngine
+# Install dependencies
+pnpm install
 
-# 编译 library
-swift build
+# Run in dev mode (hot reload)
+pnpm tauri:dev
 
-# 在 Xcode 16+ 中跑 XCTest(需 Xcode)
-swift test
+# Build release binary
+pnpm tauri:build
 
-# CommandLineTools 下用独立验证可执行
-swiftc -parse-as-library -o /tmp/janus_verify \
-  Sources/JanusSSHTunnelEngine/Domain/*.swift \
-  Sources/JanusSSHTunnelEngine/Validation/*.swift \
-  Sources/JanusSSHTunnelEngine/Persistence/*.swift \
-  Sources/JanusSSHTunnelEngine/Settings/*.swift \
-  Sources/JanusSSHTunnelEngine/SSH/*.swift \
-  Sources/JanusSSHTunnelEngine/Tunnel/*.swift \
-  Sources/JanusSSHTunnelEngine/Network/*.swift \
-  Sources/JanusSSHTunnelEngine/Services/*.swift \
-  verify/verify.swift
-/tmp/janus_verify
+# Run Rust tests
+cd src-tauri && cargo test
+
+# Run frontend tests (when added)
+pnpm test
 ```
 
-### macOS App(需要在 Xcode 16+ 中)
+### Prerequisites
 
-```bash
-xed .                              # 打开 Xcode
-# Cmd+R 跑 App
-# Cmd+U 跑测试
-```
+- **Node.js** 22+
+- **Rust** 1.85+ (use `rustup`)
+- **pnpm** 10+
+- **macOS:** Xcode Command Line Tools (`xcode-select --install`)
+- **Linux:** `webkit2gtk-4.1`, `libayatana-appindicator3-dev`, `librsvg2-dev`
+- **Windows:** WebView2 (preinstalled on Windows 11), Visual Studio Build Tools
 
----
+## Data locations
 
-## 关键 ADR(见 `docs/adr/`)
+JSON files live in `app_data_dir`:
 
-1. `0001-native-swiftui.md` — SwiftUI + Observation
-2. `0002-use-system-openssh.md` — 不实现 SSH,100% 用 `/usr/bin/ssh`
-3. `0003-profile-json-storage.md` — Codable + JSON + atomic rename
-4. `0004-profile-one-ssh-process.md` — 1 Profile = 1 SSH Process = N Forwards
-5. `0005-actor-for-process-lifecycle.md` — SSHProcess 为 actor
-6. `0006-no-xpc-in-mvp.md` — MVP 不引入 Helper/LaunchAgent
-7. `0007-no-app-sandbox.md` — 必须关闭 Sandbox
-8. `0008-tunnel-engine-as-package.md` — Engine 独立 Swift Package
-9. `0009-exit-on-forward-failure.md` — 默认 `-o ExitOnForwardFailure=yes`
-10. `0010-use-ssh-G-for-resolution.md` — Host 解析交给 `ssh -G`
+| Platform | Path |
+|---|---|
+| macOS | `~/Library/Application Support/top.lshgdut.janus-ssh/` |
+| Linux | `~/.local/share/top.lshgdut.janus-ssh/` |
+| Windows | `%APPDATA%\top.lshgdut.janus-ssh\` |
 
----
+Files: `profiles.json`, `settings.json`, `managed_pids.json`, `backups/`.
 
-## Roadmap
+## Status
 
-| Milestone | 状态 | 内容 |
-|-----------|------|------|
-| M1 — Domain Model | ✅ | Profile / PortForward / Tunnel / Validator |
-| M2 — Persistence | ✅ | AtomicFileStore / Repository / Backup |
-| M3 — SSH Engine | ✅ | SSHCommandBuilder / SSHProcess |
-| M4 — TunnelManager | ✅ | State machine / PortChecker |
-| M5 — SSH Config | ✅ | SSHConfigParser / discoverHosts / ssh -G |
-| M6 — Reconnect | ✅ | ReconnectController / Backoff |
-| M7-M9 — SwiftUI + macOS | ✅ | 6 个屏幕 + MenuBar + Settings + Launch at Login |
-| M10 — Release | ⏳ | Hardened Runtime / Notarization / DMG / Homebrew Cask |
+| Stage | Status |
+|---|---|
+| T1: Tauri scaffold | ✅ |
+| T2: Rust layered backend (Command/Service/DAO) | ✅ |
+| T3: Profile/Settings/ManagedPID DAOs + Services | ✅ |
+| T4: SSH tunnel lifecycle (TunnelService + ReconnectService + ManagedPIDService) | ✅ |
+| T5: React UI shell + theme + i18n | ✅ (basic) |
+| T6: Profile list + editor | ✅ (list) / ⏳ (editor form) |
+| T7: Hosts + settings + tunnel log views | ⏳ |
+| Menu bar popover (tray-icon) | ⏳ |
+| Auto-launch (tauri-plugin-autostart) | ⏳ |
+| Notifications (tauri-plugin-notification) | ⏳ |
+| DMG / Homebrew Cask / Linux packaging | ⏳ |
 
----
+## Migration from Swift app
+
+JSON file format is **backward-compatible** with the legacy Swift v0.3.1 app:
+- Same `app_data_dir` path
+- Same files: `profiles.json`, `settings.json`, `managed_pids.json`
+- Same `ProfileEnvelope { version, profiles }` envelope shape
+
+You can switch between the Swift app and the Tauri app without losing data. (Once you switch to Tauri, going back to Swift would require downgrading the JSON envelope — out of scope here.)
 
 ## License
 
-MIT(待定)
+MIT

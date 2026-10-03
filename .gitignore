@@ -1,79 +1,35 @@
-# macOS / OS
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-*.swp
-*.swo
-*~
-.AppleDouble
-.LSOverride
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Claude Code local settings (per-user, never committed)
-.claude/settings.local.json
+# Tauri
+src-tauri/target/
+src-tauri/gen/
 
-# Subagent-driven development scratch (per-session, never committed)
+# Local docs (brainstorming, not committed)
+docs/superpowers/
 .superpowers/
 
-# Editors
-.idea/
-.vscode/
-*.code-workspace
-
-# Secrets & local config
-.env
-.env.local
-*.pem
-*.key
-*.cert
-
-# Logs
-*.log
-logs/
-
-# Backup / temp
-*.bak
-*.tmp
-
-# Xcode user-specific
-xcuserdata/
-*.xcuserstate
-*.xcscmblueprint
-*.xccheckout
-*.moved-aside
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-
-# Xcode build artifacts
-DerivedData/
-build/
-*.xcresult
-*.dSYM
-*.dSYM.zip
-*.ipa
-
-# Distribution / archive — never commit
-*.dmg
-
-# Swift Package Manager
-.swiftpm/
-.build/
-Packages/
-Package.resolved
-
-# CocoaPods (not used, but defensive)
-Pods/
-
-# Carthage (not used, but defensive)
-Carthage/Build/
-
-# Test / verification artifacts
-*.verify
-.verify/
-
-# Whitelist: commit our Xcode project file
-# (must come AFTER *.xcodeproj/ to override)
-!JanusSSH/JanusSSH.xcodeproj/
+# Claude Code local
+.claude/settings.local.json

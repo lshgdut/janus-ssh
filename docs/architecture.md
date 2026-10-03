@@ -1,105 +1,79 @@
 # Janus SSH — Architecture
 
-> 一句话:**Janus SSH = 7 个屏幕 × Command/Service/DAO 四层 × 一个 Swift Package 化的 Tunnel Engine × 不实现 SSH 的硬性原则**
+> **Status:** v0.4.0 — Tauri 2 rewrite (Rust + React). Swift implementation preserved on `archive/swift-legacy` branch.
 
----
-
-## 四层架构 (v0.4.0+)
+## Three-layer backend
 
 ```
 ┌─────────────────────────────────────────────┐
-│                  Janus App                  │
-│                                             │
-│  SwiftUI                                    │
-│      │  @Environment(AppContainer.self)     │
-│      ▼                                      │
-│  AppContainer (facade)                      │
-│      │  services: ServicesContainer         │
-│      ▼                                      │
-│  ServicesContainer (engine, @MainActor)     │
-│      │                                      │
-│      ├── ProfileService                     │
-│      ├── TunnelService                      │
-│      ├── ReconnectService                   │
-│      ├── ManagedPIDService                  │
-│      ├── SSHConfigManager                   │
-│      └── SettingsService                    │
-│                                             │
-│      ▼                                      │
-│  DAOs (actor, per-aggregate)                │
-│      │                                      │
-│      ├── ProfileDAO   → profiles.json       │
-│      ├── SettingsDAO  → settings.json       │
-│      └── ManagedPIDDAO → managed_pids.json  │
-│                                             │
-│  Infrastructure                            │
-│      ├── SSHCommandBuilder                  │
-│      ├── SSHProcess / SSHProcessManager     │
-│      ├── PortChecker                        │
-│      ├── AtomicFileStore                    │
-│      ├── JSONMigrator                       │
-│      └── SSHConfigProviding                 │
-│                                             │
+│               Tauri Commands                │  ← IPC layer (commands/*.rs)
+│                                               │
+│   list_profiles, start_tunnel, get_settings … │
 └───────────────┬─────────────────────────────┘
                 │
-        ┌───────┴─────────┐
-        ▼                 ▼
-   macOS Frameworks    /usr/bin/ssh
+                ▼
+┌─────────────────────────────────────────────┐
+│               Services                       │  ← business logic
+│                                               │
+│   ProfileService, TunnelService,             │
+│   ReconnectService, ManagedPIDService,       │
+│   SSHConfigService, SettingsService          │
+└───────────────┬─────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────┐
+│               DAOs                           │  ← persistence
+│                                               │
+│   ProfileDAO  → profiles.json               │
+│   SettingsDAO → settings.json                │
+│   ManagedPIDDAO → managed_pids.json          │
+│                                               │
+│   All wrapped by AtomicJsonStore:            │
+│   - atomic write (tmp + fsync + rename)      │
+│   - backup rotation (rolling 10)             │
+│   - schema envelope (declarative migration)  │
+└─────────────────────────────────────────────┘
 ```
 
-### 分层职责
+## Layer responsibilities
 
-| 层 | 职责 | 依赖 | 隔离 |
-|---|---|---|---|
-| **Domain** | 数据结构 + 跨服务事件 | 无 | Sendable |
-| **Persistence (DAO)** | 文件 I/O、原子写、envelope、迁移 | Domain | actor |
-| **Services** | 业务逻辑、状态机、事件发布 | DAO, SSH, Domain | `@MainActor @Observable` (状态型) 或 `actor` (纯逻辑型) |
-| **App (AppContainer)** | service 聚合 + DI 入口 + UI 状态 | Services | MainActor |
+| Layer | Responsibility | Isolation |
+|---|---|---|
+| **Domain** (`domain.rs`) | Data structures + cross-service events | Sendable |
+| **Persistence** | File I/O, atomic write, envelope, migration | `AtomicJsonStore` |
+| **Services** | Business logic, state machine, event publishing | `Arc<RwLock<…>>` |
+| **Commands** | IPC handlers — thin wrappers around services | Sync → async via Tauri |
+| **SSH** (`ssh/`) | `/usr/bin/ssh` invocation + event streaming | `tokio::process` |
 
-### Compat shims (过渡期)
+## Frontend
 
-v0.4.0 重构引入新架构,但保留 v0.3.x 的 compat shim 以避免一次性大改 App 端 7 个 view + preview seed:
-
-- `JanusSSH/App/SSHHostManager.swift`(→ `services.sshConfigManager`)
-- `JanusSSH/App/SettingsManager.swift`(→ `services.settingsService`)
-- `JanusSSHTunnelEngine/Services/ReconnectController.swift`(→ `services.reconnectService`)
-- `JanusSSHTunnelEngine/Tunnel/TunnelManager.swift`(→ `services.tunnelService`)
-- `JanusSSHTunnelEngine/Persistence/JSONProfileRepository.swift`(→ `ProfileDAO`)
-- `JanusSSHTunnelEngine/Settings/JSONSettingsRepository.swift`(→ `SettingsDAO`)
-- `JanusSSHTunnelEngine/Services/ManagedPIDStore.swift`(→ `ManagedPIDService`)
-
-后续清理 PR 会 sed-rename view 调用点 + 删除 shim 文件。
-
----
-
-## 主要决策
-
-详见 `docs/adr/`:
-- ADR-0001 ~ 0010 — 既有决策
-- **ADR-0011** Command / Service / DAO 分层
-- **ADR-0012** 统一 `AppError`
-- **ADR-0013** 声明式 `JSONMigrator`
-
-## 错误流
+React 18 + TypeScript + Vite + Tailwind + TanStack Query. State flow:
 
 ```
-Domain Error (Sendable + LocalizedError)
-    ↓
-Service throws AppError
-    ↓
-AppContainer catches → AppError.errorDescription → UI 文案
+[ Tauri Command ] → [ TanStack Query cache ] → [ React component ]
+                                                       │
+                                                       ▼
+                                            [ invoke() mutation ] ──┐
+                                                                    │
+        ┌───────────────────────────────────────────────────────────┘
+        ▼
+[ Tauri Command ] → [ Service ] → [ DAO ] → [ Atomic write ] → [ disk ]
 ```
 
-详见 ADR-0012。
+## Key invariants (preserved from Swift engine)
 
-## 持久化流
+1. **`userRequestedStop` defense** — `stop()` sets the flag; observation task checks it on exit to prevent auto-reconnect from re-launching a user-stopped tunnel
+2. **`generations[id]` counter** — bumped at `start()`; observation task drops stale events from previous processes
+3. **`Tunnel.markStopping()/markStopped()` single convention** — all stop-path state writes go through these helpers
+4. **`stopAll()` preserves diagnostics** — `.error` and `.stopped` tunnels keep their `lastError` / `stoppedAt`
+5. **Atomic JSON persistence** — `tmp + fsync + rename` + rolling backups, never corrupt on crash
+6. **Schema envelope** — `ProfileEnvelope { version, profiles }`; future migrations via `SchemaVersion` chain
 
-```
-profileRepo.save(profiles)
-    ↓
-AtomicFileStore.write (tmp → fsync → rename)
-    ↓
-backup/profile-<ISO8601>.json (滚动 10 个)
-```
+## Cross-cutting concerns
 
-详见 `ProfileDAO.swift` / `JSONMigrator.swift`。
+- **Errors:** `AppError` (thiserror enum, `Serialize + Deserialize`) → flat string for IPC transport
+- **Persistence:** `AtomicJsonStore` with per-path `Mutex` for concurrent writes
+- **Process supervision:** `SshProcessManager` tracks live PIDs in `OSAllocatedUnfairLock`-equivalent `Mutex` for sync `terminate_all_now()`
+- **i18n:** `i18next` with `zh-CN` and `en` catalogs
+
+See `docs/adr/` for the reasoning behind each layer.

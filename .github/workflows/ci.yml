@@ -7,80 +7,62 @@ on:
     branches: [main]
 
 jobs:
-  engine-test:
-    name: Tunnel Engine Tests
-    runs-on: macos-14
-    strategy:
-      matrix:
-        macos: [macos-14, macos-15, macos-26]
+  test-rust:
+    name: Rust tests
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Swift
-        # macos-14 runner ship Swift 5.10,但 Package.swift 写 swift-tools-version:6.0
-        # 解析不动。强制装 .swift-version 指定的 6.0.3,跟 macos-15/26 一致。
-        uses: swift-actions/setup-swift@v2
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          swift-version: "6.0.3"
-
-      - name: Select macOS version
-        run: |
-          if [ "${{ matrix.macos }}" = "macos-14" ]; then
-            echo "MATRIX_OS=14" >> $GITHUB_ENV
-          elif [ "${{ matrix.macos }}" = "macos-15" ]; then
-            echo "MATRIX_OS=15" >> $GITHUB_ENV
-          else
-            echo "MATRIX_OS=26" >> $GITHUB_ENV
-          fi
-
-      - name: Build Tunnel Engine
-        working-directory: JanusSSHTunnelEngine
-        run: swift build
-
-      - name: Run XCTest
-        working-directory: JanusSSHTunnelEngine
-        run: swift test
-
-  app-build:
-    name: macOS App Build
-    runs-on: macos-15
-    needs: engine-test
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Swift
-        # 跟 engine-test 保持版本一致,避免 xcodebuild 选 Swift 跟 Package 不同
-        uses: swift-actions/setup-swift@v2
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v4
         with:
-          swift-version: "6.0.3"
+          path: src-tauri/target
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Run tests
+        working-directory: src-tauri
+        run: cargo test --locked
 
-      - name: Build App
-        run: |
-          xcodebuild \
-            -project JanusSSH.xcodeproj \
-            -scheme JanusSSH \
-            -configuration Debug \
-            -destination "platform=macOS" \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            build
-
-  integration-test:
-    name: Docker Integration
-    runs-on: macos-15
-    needs: engine-test
-    if: github.event_name == 'push'
+  test-frontend:
+    name: Frontend typecheck + build
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm build
 
-      - name: Start test SSH server
-        run: |
-          docker compose -f tools/integration-tests/docker-compose.yml up -d
-          sleep 5
-
-      - name: Run integration tests
-        run: bash scripts/integration-test.sh
-
-      - name: Stop test server
-        if: always()
-        run: docker compose -f tools/integration-tests/docker-compose.yml down
+  tauri-build-macos:
+    name: Tauri build (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-rust@v1
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm tauri build --bundles app,dmg
