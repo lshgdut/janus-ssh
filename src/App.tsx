@@ -120,11 +120,11 @@ export default function App() {
         {view === "settings" && (
           <SettingsView
             theme={theme}
-            onThemeChange={(t) => {
+            onThemeChange={(t: "system" | "light" | "dark") => {
               setTheme(t);
               invoke("update_settings", { settings: { general: { theme: t } } }).catch(console.error);
             }}
-            onLangChange={(l) => i18n.changeLanguage(l)}
+            onLangChange={(l: string) => i18n.changeLanguage(l)}
           />
         )}
       </main>

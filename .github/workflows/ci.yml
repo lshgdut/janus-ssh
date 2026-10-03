@@ -24,6 +24,12 @@ jobs:
         with:
           path: src-tauri/target
           key: ${{ runner.os }}-cargo-target-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Generate Cargo.lock if missing
+        working-directory: src-tauri
+        run: |
+          if [ ! -f Cargo.lock ]; then
+            cargo generate-lockfile
+          fi
       - name: Run tests
         working-directory: src-tauri
         run: cargo test --locked
